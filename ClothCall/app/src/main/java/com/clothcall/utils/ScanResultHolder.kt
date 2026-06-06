@@ -11,7 +11,7 @@ object ScanResultHolder {
 
     val reportedStains: MutableSet<String> = mutableSetOf()
 
-    // Accumulates messages for follow-up Claude requests (role → content)
+    // Accumulates messages for multi-turn follow-up requests (role → content)
     val conversationHistory: MutableList<Pair<String, String>> = mutableListOf()
 
     // Base64 images kept for multi-turn context

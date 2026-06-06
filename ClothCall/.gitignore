@@ -1,0 +1,16 @@
+# Gradle build cache and outputs
+.gradle/
+app/build/
+build/
+
+# Local config — contains SDK path and signing passwords, never commit
+local.properties
+
+# Android Studio
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# macOS
+.DS_Store
