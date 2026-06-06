@@ -14,11 +14,13 @@ import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.camera.core.CameraSelector
 import androidx.compose.material3.*
@@ -29,6 +31,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -40,23 +44,40 @@ import com.clothcall.ui.viewmodels.WardrobeViewModel
 import java.io.File
 import java.util.Locale
 
-private enum class WardrobeStep { LIST, CAMERA, NAME }
+private enum class WardrobeStep { LIST, CAMERA, NAME, EDIT }
 
 @Composable
 fun WardrobeScreen(navController: NavController, viewModel: WardrobeViewModel) {
     val garments by viewModel.garments.collectAsState()
     var step by remember { mutableStateOf(WardrobeStep.LIST) }
     var capturedBitmap by remember { mutableStateOf<Bitmap?>(null) }
+    var editingGarment by remember { mutableStateOf<Garment?>(null) }
+    var editBitmap by remember { mutableStateOf<Bitmap?>(null) }
+    var editName by remember { mutableStateOf("") }
 
     when (step) {
         WardrobeStep.LIST -> GarmentList(
             garments = garments,
             onAdd = { step = WardrobeStep.CAMERA },
             onDelete = { viewModel.deleteGarment(it) },
+            onEdit = { garment ->
+                editingGarment = garment
+                editBitmap = null
+                editName = garment.name
+                step = WardrobeStep.EDIT
+            },
             onBack = { navController.popBackStack() }
         )
         WardrobeStep.CAMERA -> WardrobeCameraScreen(
-            onCapture = { bitmap -> capturedBitmap = bitmap; step = WardrobeStep.NAME },
+            onCapture = { bitmap ->
+                if (editingGarment == null) {
+                    capturedBitmap = bitmap
+                    step = WardrobeStep.NAME
+                } else {
+                    editBitmap = bitmap
+                    step = WardrobeStep.EDIT
+                }
+            },
             onBack = { step = WardrobeStep.LIST }
         )
         WardrobeStep.NAME -> capturedBitmap?.let { bmp ->
@@ -64,9 +85,32 @@ fun WardrobeScreen(navController: NavController, viewModel: WardrobeViewModel) {
                 bitmap = bmp,
                 onSave = { name ->
                     viewModel.addGarment(navController.context, name, bmp)
+                    capturedBitmap = null
                     step = WardrobeStep.LIST
                 },
                 onBack = { step = WardrobeStep.CAMERA }
+            )
+        }
+        WardrobeStep.EDIT -> editingGarment?.let { garment ->
+            EditGarmentScreen(
+                garment = garment,
+                editedName = editName,
+                editedBitmap = editBitmap,
+                onNameChange = { editName = it },
+                onRetake = { step = WardrobeStep.CAMERA },
+                onSave = { name, bitmap ->
+                    viewModel.updateGarment(navController.context, garment, name, bitmap)
+                    editingGarment = null
+                    editBitmap = null
+                    editName = ""
+                    step = WardrobeStep.LIST
+                },
+                onBack = {
+                    editingGarment = null
+                    editBitmap = null
+                    editName = ""
+                    step = WardrobeStep.LIST
+                }
             )
         }
     }
@@ -78,6 +122,7 @@ private fun GarmentList(
     garments: List<Garment>,
     onAdd: () -> Unit,
     onDelete: (Garment) -> Unit,
+    onEdit: (Garment) -> Unit,
     onBack: () -> Unit
 ) {
     Scaffold(
@@ -85,7 +130,7 @@ private fun GarmentList(
             TopAppBar(
                 title = { Text("Wardrobe") },
                 navigationIcon = {
-                    IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, "Back") }
+                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") }
                 },
                 actions = {
                     IconButton(onClick = onAdd) { Icon(Icons.Filled.Add, "Add garment") }
@@ -110,7 +155,11 @@ private fun GarmentList(
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 items(garments, key = { it.id }) { garment ->
-                    GarmentCard(garment = garment, onDelete = { onDelete(garment) })
+                    GarmentCard(
+                        garment = garment,
+                        onEdit = { onEdit(garment) },
+                        onDelete = { onDelete(garment) }
+                    )
                 }
             }
         }
@@ -118,10 +167,11 @@ private fun GarmentList(
 }
 
 @Composable
-private fun GarmentCard(garment: Garment, onDelete: () -> Unit) {
+private fun GarmentCard(garment: Garment, onEdit: () -> Unit, onDelete: () -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        elevation = CardDefaults.cardElevation(2.dp)
+        elevation = CardDefaults.cardElevation(2.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFFE3F2FD))
     ) {
         Row(
             modifier = Modifier.padding(12.dp),
@@ -148,8 +198,13 @@ private fun GarmentCard(garment: Garment, onDelete: () -> Unit) {
                 }
             }
 
-            Column(modifier = Modifier.weight(1f)) {
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(garment.name, style = MaterialTheme.typography.bodyLarge)
+                Text("Tap edit to rename or retake the cloth photo.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
+            }
+
+            IconButton(onClick = onEdit) {
+                Icon(Icons.Filled.Edit, "Edit", tint = MaterialTheme.colorScheme.primary)
             }
 
             IconButton(onClick = onDelete) {
@@ -193,7 +248,7 @@ private fun WardrobeCameraScreen(onCapture: (Bitmap) -> Unit, onBack: () -> Unit
         }
 
         IconButton(onClick = onBack, modifier = Modifier.align(Alignment.TopStart).padding(16.dp)) {
-            Icon(Icons.Filled.ArrowBack, "Back", tint = androidx.compose.ui.graphics.Color.White)
+            Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = androidx.compose.ui.graphics.Color.White)
         }
 
         IconButton(
@@ -241,7 +296,7 @@ private fun NameGarmentScreen(bitmap: Bitmap, onSave: (String) -> Unit, onBack: 
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         IconButton(onClick = onBack, modifier = Modifier.align(Alignment.Start)) {
-            Icon(Icons.Filled.ArrowBack, "Back")
+            Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back")
         }
 
         Text("Name this garment", style = MaterialTheme.typography.headlineMedium)
@@ -262,7 +317,7 @@ private fun NameGarmentScreen(bitmap: Bitmap, onSave: (String) -> Unit, onBack: 
             trailingIcon = {
                 IconButton(onClick = {
                     isListening = true
-                    startSttForName(stt, context) { result ->
+                    startSttForName(stt) { result ->
                         if (result.isNotBlank()) name = result
                         isListening = false
                     }
@@ -285,7 +340,106 @@ private fun NameGarmentScreen(bitmap: Bitmap, onSave: (String) -> Unit, onBack: 
     }
 }
 
-private fun startSttForName(stt: SpeechRecognizer, context: android.content.Context, onResult: (String) -> Unit) {
+@Composable
+private fun EditGarmentScreen(
+    garment: Garment,
+    editedName: String,
+    editedBitmap: Bitmap?,
+    onNameChange: (String) -> Unit,
+    onRetake: () -> Unit,
+    onSave: (String, Bitmap?) -> Unit,
+    onBack: () -> Unit
+) {
+    val imageModifier = Modifier
+        .fillMaxWidth()
+        .height(220.dp)
+        .clip(RoundedCornerShape(16.dp))
+        .clickable { onRetake() }
+
+    Column(
+        modifier = Modifier.fillMaxSize().padding(24.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        IconButton(onClick = onBack, modifier = Modifier.align(Alignment.Start)) {
+            Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back")
+        }
+
+        Text("Edit garment", style = MaterialTheme.typography.headlineMedium)
+
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFFE3F2FD)),
+            elevation = CardDefaults.cardElevation(2.dp)
+        ) {
+            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                Box(modifier = imageModifier, contentAlignment = Alignment.BottomCenter) {
+                    if (editedBitmap != null) {
+                        Image(
+                            bitmap = editedBitmap.asImageBitmap(),
+                            contentDescription = null,
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
+                        )
+                    } else {
+                        val file = File(garment.imagePath)
+                        Image(
+                            painter = rememberAsyncImagePainter(file),
+                            contentDescription = null,
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
+                        )
+                    }
+                    Surface(
+                        color = Color.Black.copy(alpha = 0.45f),
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(
+                            text = "Tap cloth to retake photo",
+                            color = Color.White,
+                            modifier = Modifier.padding(10.dp),
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                }
+
+                OutlinedTextField(
+                    value = editedName,
+                    onValueChange = onNameChange,
+                    label = { Text("Garment name") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        "Rename or retake this cloth.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.outline,
+                        modifier = Modifier.weight(1f)
+                    )
+                    IconButton(onClick = onRetake) {
+                        Icon(Icons.Filled.Edit, "Retake photo", tint = MaterialTheme.colorScheme.primary)
+                    }
+                }
+
+                Button(
+                    onClick = { onSave(editedName.trim(), editedBitmap) },
+                    enabled = editedName.isNotBlank(),
+                    modifier = Modifier.fillMaxWidth().height(56.dp)
+                ) {
+                    Text("Save changes")
+                }
+            }
+        }
+    }
+}
+
+private fun startSttForName(stt: SpeechRecognizer, onResult: (String) -> Unit) {
     stt.setRecognitionListener(object : RecognitionListener {
         override fun onReadyForSpeech(p: Bundle?) {}
         override fun onBeginningOfSpeech() {}

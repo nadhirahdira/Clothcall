@@ -9,6 +9,8 @@ object ScanResultHolder {
     var caregiverName: String? = null
     var fadeThreshold: Int? = null
 
+    val reportedStains: MutableSet<String> = mutableSetOf()
+
     // Accumulates messages for follow-up Claude requests (role → content)
     val conversationHistory: MutableList<Pair<String, String>> = mutableListOf()
 
@@ -20,6 +22,7 @@ object ScanResultHolder {
         response = ""
         caregiverName = null
         fadeThreshold = null
+        reportedStains.clear()
         conversationHistory.clear()
         base64Image = ""
         baselineBase64 = null

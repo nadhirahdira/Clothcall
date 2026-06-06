@@ -2,7 +2,9 @@ package com.clothcall.utils
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.media.AudioDeviceInfo
 import android.media.AudioManager
+import android.os.Build
 import android.os.Bundle
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
@@ -27,18 +29,47 @@ class AudioRouter(private val context: Context) {
 
     @SuppressLint("MissingPermission")
     fun routeToEarpiece() {
-        audioManager.mode = AudioManager.MODE_IN_CALL
-        audioManager.isSpeakerphoneOn = false
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val device = audioManager.availableCommunicationDevices.firstOrNull {
+                it.type == AudioDeviceInfo.TYPE_BUILTIN_EARPIECE
+            }
+            if (device != null && audioManager.setCommunicationDevice(device)) {
+                return
+            }
+        }
+        @Suppress("DEPRECATION")
+        run {
+            audioManager.mode = AudioManager.MODE_IN_CALL
+            audioManager.isSpeakerphoneOn = false
+        }
     }
 
     fun routeToSpeaker() {
-        audioManager.mode = AudioManager.MODE_NORMAL
-        audioManager.isSpeakerphoneOn = true
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val device = audioManager.availableCommunicationDevices.firstOrNull {
+                it.type == AudioDeviceInfo.TYPE_BUILTIN_SPEAKER
+            }
+            if (device != null && audioManager.setCommunicationDevice(device)) {
+                return
+            }
+        }
+        @Suppress("DEPRECATION")
+        run {
+            audioManager.mode = AudioManager.MODE_NORMAL
+            audioManager.isSpeakerphoneOn = true
+        }
     }
 
     fun resetRouting() {
-        audioManager.mode = AudioManager.MODE_NORMAL
-        audioManager.isSpeakerphoneOn = false
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            audioManager.clearCommunicationDevice()
+            return
+        }
+        @Suppress("DEPRECATION")
+        run {
+            audioManager.mode = AudioManager.MODE_NORMAL
+            audioManager.isSpeakerphoneOn = false
+        }
     }
 
     suspend fun speak(text: String, id: String = "cc_utt"): Boolean =

@@ -23,6 +23,12 @@ class CaregiverViewModel(private val dao: CaregiverProfileDao) : ViewModel() {
         }
     }
 
+    fun updateProfile(profile: CaregiverProfile) {
+        viewModelScope.launch {
+            dao.updateProfile(profile)
+        }
+    }
+
     fun deleteProfile(profile: CaregiverProfile) {
         viewModelScope.launch { dao.deleteProfile(profile) }
     }

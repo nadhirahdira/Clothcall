@@ -8,5 +8,6 @@ data class Garment(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
     val name: String,
     val imagePath: String,
+    val baselinePath: String? = null,
     val dateAdded: Long = System.currentTimeMillis()
 )

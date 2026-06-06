@@ -165,20 +165,20 @@
                     }
                 },
                 {
-                    "source": "/Users/amen/ClothCall/app/src/main/res/values/strings.xml",
+                    "source": "/Users/amen/Documents/GitHub/Clothcall/ClothCall/app/src/main/res/values/themes.xml",
                     "from": {
                         "startLines": "2",
                         "startColumns": "4",
                         "startOffsets": "55",
-                        "endColumns": "46",
-                        "endOffsets": "97"
+                        "endColumns": "86",
+                        "endOffsets": "137"
                     },
                     "to": {
-                        "startLines": "321",
+                        "startLines": "1826",
                         "startColumns": "4",
-                        "startOffsets": "20503",
-                        "endColumns": "46",
-                        "endOffsets": "20545"
+                        "startOffsets": "120766",
+                        "endColumns": "85",
+                        "endOffsets": "120847"
                     }
                 },
                 {
@@ -196,23 +196,6 @@
                         "startOffsets": "16873,17960",
                         "endColumns": "41,59",
                         "endOffsets": "16910,18015"
-                    }
-                },
-                {
-                    "source": "/Users/amen/ClothCall/app/src/main/res/values/themes.xml",
-                    "from": {
-                        "startLines": "2",
-                        "startColumns": "4",
-                        "startOffsets": "55",
-                        "endColumns": "86",
-                        "endOffsets": "137"
-                    },
-                    "to": {
-                        "startLines": "1826",
-                        "startColumns": "4",
-                        "startOffsets": "120766",
-                        "endColumns": "85",
-                        "endOffsets": "120847"
                     }
                 },
                 {
@@ -287,6 +270,23 @@
                         "startOffsets": "20420",
                         "endColumns": "82",
                         "endOffsets": "20498"
+                    }
+                },
+                {
+                    "source": "/Users/amen/Documents/GitHub/Clothcall/ClothCall/app/src/main/res/values/strings.xml",
+                    "from": {
+                        "startLines": "2",
+                        "startColumns": "4",
+                        "startOffsets": "55",
+                        "endColumns": "46",
+                        "endOffsets": "97"
+                    },
+                    "to": {
+                        "startLines": "321",
+                        "startColumns": "4",
+                        "startOffsets": "20503",
+                        "endColumns": "46",
+                        "endOffsets": "20545"
                     }
                 },
                 {

@@ -10,11 +10,14 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.clothcall.api.GeminiApiService
 import com.clothcall.data.db.CaregiverProfileDao
+import com.clothcall.data.db.Garment
 import com.clothcall.data.db.GarmentDao
 import com.clothcall.utils.PreferencesManager
 import com.clothcall.utils.ScanResultHolder
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.io.ByteArrayOutputStream
 import java.io.File
@@ -62,7 +65,7 @@ class ScanViewModel(
             result.onSuccess { text ->
                 ScanResultHolder.response = text
                 ScanResultHolder.conversationHistory.clear()
-                ScanResultHolder.conversationHistory.add("model" to text)
+                ScanResultHolder.conversationHistory.add("assistant" to text)
                 _state.value = ScanState.Done
             }.onFailure { e ->
                 _state.value = ScanState.Error(e.message ?: "Unknown error")
@@ -76,7 +79,8 @@ class ScanViewModel(
         val id = prefs.selectedGarmentId
         if (id < 0) return null
         val garment = garmentDao.getGarmentById(id) ?: return null
-        val file = File(garment.imagePath)
+        val path = garment.baselinePath ?: return null
+        val file = File(path)
         if (!file.exists()) return null
         val bmp = BitmapFactory.decodeFile(file.absolutePath) ?: return null
         return bitmapToBase64(bmp)

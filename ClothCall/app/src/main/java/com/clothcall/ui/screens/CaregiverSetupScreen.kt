@@ -1,78 +1,126 @@
 package com.clothcall.ui.screens
 
-import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.ColorMatrix
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
+import com.clothcall.R
 import com.clothcall.data.db.CaregiverProfile
 import com.clothcall.ui.viewmodels.CaregiverViewModel
 
-// ── Local-only types (ViewModel just receives the final Int threshold) ────────
-
 private enum class FadeRating { STILL_FINE, BORDERLINE, RETIRE }
 
-private val FADE_LEVELS = listOf(0, 5, 10, 20, 30)
-
-private val SHIRT_COLORS = listOf(
-    Color(0xFF0D1B4B),  // 0%  — deep navy
-    Color(0xFF1A3270),  // 5%
-    Color(0xFF2E559A),  // 10%
-    Color(0xFF6680BB),  // 20%
-    Color(0xFFA8B8D8),  // 30% — washed out
+private data class FadeLevel(
+    val percent: Int,
+    val label: String,
+    val saturation: Float,
+    val brightness: Float
 )
 
-private val JEANS_COLORS = listOf(
-    Color(0xFF101F30),  // 0%  — raw dark denim
-    Color(0xFF1A3A5C),  // 5%
-    Color(0xFF1F5F9E),  // 10%
-    Color(0xFF4A84B8),  // 20%
-    Color(0xFF8FBBD8),  // 30% — very faded denim
+private val FADE_LEVELS = listOf(
+    FadeLevel(0, "Like New", 1.00f, 1.00f),
+    FadeLevel(5, "Lightly Faded", 0.85f, 1.05f),
+    FadeLevel(10, "Noticeably Faded", 0.65f, 1.12f),
+    FadeLevel(20, "Heavily Faded", 0.40f, 1.20f),
+    FadeLevel(30, "Very Worn", 0.15f, 1.30f)
 )
-
-private val FADE_LABELS = listOf("Fresh (0%)", "Barely faded (5%)", "Light fade (10%)", "Clear fade (20%)", "Heavily faded (30%)")
-
-// ── Step navigation ──────────────────────────────────────────────────────────
 
 private enum class CaregiverSetupStep { LIST, CREATE }
+
+private fun initialRatingsForThreshold(threshold: Int): Map<Int, FadeRating> {
+    return FADE_LEVELS.associate { level ->
+        level.percent to when {
+            threshold >= 30 -> FadeRating.STILL_FINE
+            level.percent < threshold -> FadeRating.STILL_FINE
+            level.percent == threshold -> FadeRating.BORDERLINE
+            else -> FadeRating.RETIRE
+        }
+    }
+}
 
 @Composable
 fun CaregiverSetupScreen(navController: NavController, viewModel: CaregiverViewModel) {
     val profiles by viewModel.profiles.collectAsState()
     var step by remember { mutableStateOf(CaregiverSetupStep.LIST) }
+    var editingProfile by remember { mutableStateOf<CaregiverProfile?>(null) }
 
     when (step) {
         CaregiverSetupStep.LIST -> ProfileListScreen(
             profiles = profiles,
             onAdd = { step = CaregiverSetupStep.CREATE },
             onDelete = { viewModel.deleteProfile(it) },
+            onEdit = { profile ->
+                editingProfile = profile
+                step = CaregiverSetupStep.CREATE
+            },
             onBack = { navController.popBackStack() }
         )
+
         CaregiverSetupStep.CREATE -> CreateProfileScreen(
-            onSave = { name, threshold ->
-                viewModel.saveProfile(name, threshold)
+            editingProfile = editingProfile,
+            onSave = { profile, name, threshold ->
+                if (profile == null) {
+                    viewModel.saveProfile(name, threshold)
+                } else {
+                    viewModel.updateProfile(profile.copy(name = name, fadeThreshold = threshold))
+                }
+                editingProfile = null
                 step = CaregiverSetupStep.LIST
             },
-            onBack = { step = CaregiverSetupStep.LIST }
+            onBack = {
+                editingProfile = null
+                step = CaregiverSetupStep.LIST
+            }
         )
     }
 }
-
-// ── Profile list ──────────────────────────────────────────────────────────────
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -80,6 +128,7 @@ private fun ProfileListScreen(
     profiles: List<CaregiverProfile>,
     onAdd: () -> Unit,
     onDelete: (CaregiverProfile) -> Unit,
+    onEdit: (CaregiverProfile) -> Unit,
     onBack: () -> Unit
 ) {
     Scaffold(
@@ -87,7 +136,7 @@ private fun ProfileListScreen(
             TopAppBar(
                 title = { Text("Trusted people") },
                 navigationIcon = {
-                    IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, "Back") }
+                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") }
                 },
                 actions = { TextButton(onClick = onAdd) { Text("Add new") } }
             )
@@ -97,7 +146,8 @@ private fun ProfileListScreen(
             Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
                 Text(
                     "No trusted people added yet.\nTap 'Add new' to create a profile.",
-                    textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.outline
+                    textAlign = TextAlign.Center,
+                    color = MaterialTheme.colorScheme.outline
                 )
             }
         } else {
@@ -107,18 +157,31 @@ private fun ProfileListScreen(
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 items(profiles, key = { it.id }) { profile ->
-                    Card(modifier = Modifier.fillMaxWidth()) {
-                        Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(profile.name, style = MaterialTheme.typography.bodyLarge)
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFFE3F2FD))
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text(profile.name, style = MaterialTheme.typography.titleMedium)
                                 Text(
                                     "Fade tolerance: ${profile.fadeThreshold}%",
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = MaterialTheme.colorScheme.outline
                                 )
                             }
-                            IconButton(onClick = { onDelete(profile) }) {
-                                Icon(Icons.Filled.Delete, "Delete", tint = MaterialTheme.colorScheme.error)
+
+                            Row(horizontalArrangement = Arrangement.spacedBy(0.dp)) {
+                                IconButton(onClick = { onEdit(profile) }) {
+                                    Icon(Icons.Filled.Edit, "Edit", tint = MaterialTheme.colorScheme.primary)
+                                }
+                                IconButton(onClick = { onDelete(profile) }) {
+                                    Icon(Icons.Filled.Delete, "Delete", tint = MaterialTheme.colorScheme.error)
+                                }
                             }
                         }
                     }
@@ -128,83 +191,89 @@ private fun ProfileListScreen(
     }
 }
 
-// ── Create profile ────────────────────────────────────────────────────────────
-
 @Composable
-private fun CreateProfileScreen(onSave: (String, Int) -> Unit, onBack: () -> Unit) {
-    var name by remember { mutableStateOf("") }
-    val shirtRatings = remember { mutableStateMapOf<Int, FadeRating>() }
-    val jeansRatings = remember { mutableStateMapOf<Int, FadeRating>() }
-
-    val shirtsAllRated = FADE_LEVELS.all { shirtRatings.containsKey(it) }
-    val jeansAllRated  = FADE_LEVELS.all { jeansRatings.containsKey(it) }
-    val canSave = name.isNotBlank() && shirtsAllRated && jeansAllRated
+private fun CreateProfileScreen(
+    editingProfile: CaregiverProfile?,
+    onSave: (CaregiverProfile?, String, Int) -> Unit,
+    onBack: () -> Unit
+) {
+    var name by remember(editingProfile?.id) { mutableStateOf(editingProfile?.name ?: "") }
+    val ratings = remember(editingProfile?.id) {
+        mutableStateMapOf<Int, FadeRating>().apply {
+            putAll(initialRatingsForThreshold(editingProfile?.fadeThreshold ?: 30))
+        }
+    }
+    val canSave = name.isNotBlank() && FADE_LEVELS.all { ratings.containsKey(it.percent) }
 
     Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 20.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+        modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, "Back") }
+        IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") }
 
-        Text("Add a trusted person", style = MaterialTheme.typography.headlineMedium)
+        Text(
+            if (editingProfile == null) "Add a trusted person" else "Edit trusted person",
+            style = MaterialTheme.typography.headlineMedium
+        )
 
         OutlinedTextField(
             value = name,
             onValueChange = { name = it },
-            label = { Text("Name  (e.g. Wife, Colleague)") },
+            label = { Text("Name (e.g. Wife, Colleague)") },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true
         )
 
-        Spacer(Modifier.height(4.dp))
+        HorizontalDivider()
 
-        // ── Shirts section ────────────────────────────────────────────────
-        SectionHeader("Shirts")
         Text(
-            "For each shirt below, tap how you feel about it:",
+            "Rate the same fabric photo at five fade levels.",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.outline
         )
-        FADE_LEVELS.forEachIndexed { i, level ->
-            ClothingFadeRow(
-                label = FADE_LABELS[i],
-                color = SHIRT_COLORS[i],
-                drawClothing = DrawScope::drawShirt,
-                selected = shirtRatings[level],
-                onSelect = { rating -> shirtRatings[level] = rating }
-            )
+
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(end = 12.dp)) {
+            items(FADE_LEVELS) { level ->
+                Card(
+                    modifier = Modifier.width(240.dp),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+                    shape = MaterialTheme.shapes.extraLarge
+                ) {
+                    Column(
+                        modifier = Modifier.padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Image(
+                            painter = painterResource(R.drawable.fabric_base),
+                            contentDescription = level.label,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(190.dp),
+                            colorFilter = fadeFilter(level.saturation, level.brightness)
+                        )
+
+                        Text(
+                            level.label,
+                            style = MaterialTheme.typography.titleMedium,
+                            modifier = Modifier.fillMaxWidth(),
+                            textAlign = TextAlign.Center
+                        )
+
+                        RatingButtons(
+                            selected = ratings[level.percent],
+                            onSelect = { ratings[level.percent] = it },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                }
+            }
         }
-
-        Spacer(Modifier.height(8.dp))
-
-        // ── Jeans / trousers section ──────────────────────────────────────
-        SectionHeader("Jeans / Trousers")
-        Text(
-            "Now do the same for jeans or trousers:",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.outline
-        )
-        FADE_LEVELS.forEachIndexed { i, level ->
-            ClothingFadeRow(
-                label = FADE_LABELS[i],
-                color = JEANS_COLORS[i],
-                drawClothing = DrawScope::drawJeans,
-                selected = jeansRatings[level],
-                onSelect = { rating -> jeansRatings[level] = rating }
-            )
-        }
-
-        Spacer(Modifier.height(8.dp))
 
         if (!canSave) {
             Text(
                 text = when {
                     name.isBlank() -> "Enter a name to continue."
-                    !shirtsAllRated -> "Rate all 5 shirt stages."
-                    else -> "Rate all 5 jeans stages."
+                    else -> "Rate all 5 levels before saving."
                 },
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.outline,
@@ -214,170 +283,93 @@ private fun CreateProfileScreen(onSave: (String, Int) -> Unit, onBack: () -> Uni
         }
 
         Button(
-            onClick = {
-                val threshold = computeOverallThreshold(shirtRatings, jeansRatings)
-                onSave(name.trim(), threshold)
-            },
+            onClick = { onSave(editingProfile, name.trim(), computeOverallThreshold(ratings)) },
             enabled = canSave,
-            modifier = Modifier.fillMaxWidth().height(56.dp)
+            modifier = Modifier.fillMaxWidth().height(52.dp)
         ) {
             Text("Save profile")
         }
-
-        Spacer(Modifier.height(16.dp))
     }
 }
 
 @Composable
-private fun SectionHeader(title: String) {
-    HorizontalDivider()
-    Text(title, style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 4.dp))
-}
-
-// ── Single clothing fade row ──────────────────────────────────────────────────
-
-@Composable
-private fun ClothingFadeRow(
-    label: String,
-    color: Color,
-    drawClothing: DrawScope.(Color) -> Unit,
-    selected: FadeRating?,
-    onSelect: (FadeRating) -> Unit
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        // Clothing silhouette drawn on canvas
-        Canvas(
-            modifier = Modifier
-                .width(52.dp)
-                .height(68.dp)
-        ) {
-            drawClothing(color)
-        }
-
-        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(label, style = MaterialTheme.typography.bodyMedium)
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                RatingChip("Still fine",  FadeRating.STILL_FINE, selected, onSelect, Color(0xFF2E7D32))
-                RatingChip("Borderline",  FadeRating.BORDERLINE, selected, onSelect, Color(0xFFF57C00))
-                RatingChip("Retire",      FadeRating.RETIRE,     selected, onSelect, MaterialTheme.colorScheme.error)
-            }
-        }
-    }
-}
-
-@Composable
-private fun RatingChip(
-    label: String,
-    rating: FadeRating,
+private fun RatingButtons(
     selected: FadeRating?,
     onSelect: (FadeRating) -> Unit,
-    activeColor: Color
+    modifier: Modifier = Modifier
 ) {
-    val isSelected = selected == rating
-    OutlinedButton(
-        onClick = { onSelect(rating) },
-        modifier = Modifier.height(34.dp),
-        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
-        colors = ButtonDefaults.outlinedButtonColors(
-            containerColor = if (isSelected) activeColor.copy(alpha = 0.15f) else Color.Transparent,
-            contentColor = if (isSelected) activeColor else MaterialTheme.colorScheme.onSurface
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = modifier) {
+        RatingButton(
+            text = "Still fine",
+            selected = selected == FadeRating.STILL_FINE,
+            onClick = { onSelect(FadeRating.STILL_FINE) },
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        RatingButton(
+            text = "Borderline",
+            selected = selected == FadeRating.BORDERLINE,
+            onClick = { onSelect(FadeRating.BORDERLINE) },
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        RatingButton(
+            text = "Retire",
+            selected = selected == FadeRating.RETIRE,
+            onClick = { onSelect(FadeRating.RETIRE) },
+            modifier = Modifier.fillMaxWidth()
+        )
+    }
+}
+
+@Composable
+private fun RatingButton(
+    text: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true
+) {
+    Button(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = modifier.height(46.dp),
+        shape = MaterialTheme.shapes.extraLarge,
+        colors = ButtonDefaults.buttonColors(
+            containerColor = if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.92f) else MaterialTheme.colorScheme.surfaceVariant,
+            contentColor = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
         )
     ) {
-        Text(label, style = MaterialTheme.typography.labelMedium)
+        Text(
+            text = text,
+            maxLines = 2,
+            textAlign = TextAlign.Center,
+            style = MaterialTheme.typography.labelLarge,
+            modifier = Modifier.fillMaxWidth()
+        )
     }
 }
 
-// ── Canvas clothing silhouettes ───────────────────────────────────────────────
-
-private fun DrawScope.drawShirt(color: Color) {
-    val w = size.width
-    val h = size.height
-    val path = Path()
-
-    // Start at collar left
-    path.moveTo(w * 0.34f, 0f)
-    // Left shoulder
-    path.lineTo(w * 0.18f, 0f)
-    // Left sleeve outer edge
-    path.lineTo(0f,        h * 0.14f)
-    path.lineTo(0f,        h * 0.40f)
-    // Left sleeve inner (back toward body)
-    path.lineTo(w * 0.20f, h * 0.34f)
-    // Left body down to hem
-    path.lineTo(w * 0.16f, h)
-    // Hem bottom
-    path.lineTo(w * 0.84f, h)
-    // Right body up from hem
-    path.lineTo(w * 0.80f, h * 0.34f)
-    // Right sleeve inner
-    path.lineTo(w,         h * 0.40f)
-    // Right sleeve outer edge
-    path.lineTo(w,         h * 0.14f)
-    // Right shoulder
-    path.lineTo(w * 0.82f, 0f)
-    path.lineTo(w * 0.66f, 0f)
-    // V-neck
-    path.lineTo(w * 0.50f, h * 0.17f)
-    path.lineTo(w * 0.34f, 0f)
-    path.close()
-
-    drawPath(path, color)
+private fun computeOverallThreshold(ratings: Map<Int, FadeRating>): Int {
+    return FADE_LEVELS.firstNotNullOfOrNull { level ->
+        when (ratings[level.percent]) {
+            FadeRating.BORDERLINE, FadeRating.RETIRE -> level.percent
+            else -> null
+        }
+    } ?: 30
 }
 
-private fun DrawScope.drawJeans(color: Color) {
-    val w = size.width
-    val h = size.height
-
-    // Waist + crotch panel
-    val upper = Path()
-    upper.moveTo(w * 0.04f, 0f)
-    upper.lineTo(w * 0.96f, 0f)
-    upper.lineTo(w * 0.90f, h * 0.38f)
-    upper.lineTo(w * 0.56f, h * 0.38f)
-    upper.lineTo(w * 0.50f, h * 0.46f)   // crotch point
-    upper.lineTo(w * 0.44f, h * 0.38f)
-    upper.lineTo(w * 0.10f, h * 0.38f)
-    upper.close()
-    drawPath(upper, color)
-
-    // Left leg (slightly tapered)
-    val leftLeg = Path()
-    leftLeg.moveTo(w * 0.07f, h * 0.36f)
-    leftLeg.lineTo(w * 0.46f, h * 0.36f)
-    leftLeg.lineTo(w * 0.40f, h)
-    leftLeg.lineTo(0f,        h)
-    leftLeg.close()
-    drawPath(leftLeg, color)
-
-    // Right leg (slightly tapered)
-    val rightLeg = Path()
-    rightLeg.moveTo(w * 0.54f, h * 0.36f)
-    rightLeg.lineTo(w * 0.93f, h * 0.36f)
-    rightLeg.lineTo(w,         h)
-    rightLeg.lineTo(w * 0.60f, h)
-    rightLeg.close()
-    drawPath(rightLeg, color)
+private fun fadeFilter(saturation: Float, brightness: Float): ColorFilter {
+    val luminosityR = 0.213f
+    val luminosityG = 0.715f
+    val luminosityB = 0.072f
+    val inverse = 1f - saturation
+    val scaled = brightness
+    val matrix = floatArrayOf(
+        (luminosityR * inverse + saturation) * scaled, luminosityG * inverse * scaled, luminosityB * inverse * scaled, 0f, 0f,
+        luminosityR * inverse * scaled, (luminosityG * inverse + saturation) * scaled, luminosityB * inverse * scaled, 0f, 0f,
+        luminosityR * inverse * scaled, luminosityG * inverse * scaled, (luminosityB * inverse + saturation) * scaled, 0f, 0f,
+        0f, 0f, 0f, 1f, 0f
+    )
+    return ColorFilter.colorMatrix(ColorMatrix(matrix))
 }
-
-// ── Threshold helpers ─────────────────────────────────────────────────────────
-
-private fun computeThreshold(ratings: Map<Int, FadeRating>): Int {
-    val lastFine   = FADE_LEVELS.lastOrNull  { ratings[it] == FadeRating.STILL_FINE }
-    val firstRetire = FADE_LEVELS.firstOrNull { ratings[it] == FadeRating.RETIRE }
-    return when {
-        lastFine == null && firstRetire == null -> 15
-        lastFine == null  -> (firstRetire ?: 5) / 2
-        firstRetire == null -> (lastFine + 30) / 2
-        else -> (lastFine + firstRetire) / 2
-    }
-}
-
-/** Average of shirt and jeans calibrations — stored as the profile's single threshold. */
-private fun computeOverallThreshold(
-    shirtRatings: Map<Int, FadeRating>,
-    jeansRatings:  Map<Int, FadeRating>
-): Int = (computeThreshold(shirtRatings) + computeThreshold(jeansRatings)) / 2

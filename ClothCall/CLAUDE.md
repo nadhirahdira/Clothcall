@@ -18,28 +18,24 @@ Android app that checks clothing condition before the user wears it. A photo is 
 - *Home* — in-app speakerphone (`MODE_NORMAL`).
 - *Out* — uses Android Telecom self-managed calls; audio routes through the earpiece (`MODE_IN_CALL`) and the system lock screen shows an incoming call UI.
 
-## Two scan modes
+## Scan mode
 
-### Stain-only (no garment selected)
-Single image sent. Uses `STAIN_ONLY_PROMPT` as system prompt. Looks for stains, marks, discoloration, and damage. No fading comparison possible.
+Currently only **stain-only mode** is active. A single image is sent using `STAIN_ONLY_PROMPT` as the system prompt. The app looks for stains, marks, discoloration, and damage.
 
-### Fading + stain comparison (garment selected)
-Two images sent — the wardrobe baseline first, today's scan second. Uses `SYSTEM_PROMPT`. Groq compares the two for fading, stains, and condition changes, calibrated to the caregiver's `fadeThreshold` percentage.
-
-The garment dropdown on the Home screen controls which mode runs. Selecting "None" reverts to stain-only.
+The fading + stain comparison mode (two images: wardrobe baseline vs. today's scan) exists in the codebase (`ScanViewModel.loadBaselineBase64`, `GeminiApiService.analyzeClothing` with `baselineBase64 != null`, `SYSTEM_PROMPT`) but is not reachable from the UI because there is no garment selector on the HomeScreen. `PreferencesManager.selectedGarmentId` defaults to -1 and is never updated, so `loadBaselineBase64()` always returns null and the stain-only path always runs.
 
 ## Architecture
 
 - **Language:** Kotlin
 - **UI:** Jetpack Compose (Material 3)
 - **Navigation:** Navigation Compose (`AppNavigation.kt`)
-- **Database:** Room (single `AppDatabase` with two tables)
+- **Database:** Room (single `AppDatabase` with two tables, version 2)
 - **Network:** OkHttp (no Retrofit), direct JSON construction with `org.json`
 - **AI:** Groq REST API — model `meta-llama/llama-4-scout-17b-16e-instruct` (`GeminiApiService.kt` — class name kept for import compatibility)
 - **Telecom:** Android Telecom self-managed `PhoneAccount` + `ConnectionService`
 - **Camera:** CameraX `ImageCapture`
 - **Voice in:** `SpeechRecognizer` (Android STT)
-- **Voice out:** `TextToSpeech` (Android TTS)
+- **Voice out:** `TextToSpeech` (Android TTS) — managed locally in `CallUIScreen`, not through `AudioRouter`
 - **Audio routing:** `AudioRouter.kt` — called by `CallViewModel` on phase transitions
 
 ## Project layout
@@ -50,7 +46,7 @@ app/src/main/java/com/clothcall/
 │   ├── GeminiApiService.kt        # Groq REST calls: analyzeClothing + requestMoreDetail
 │   └── ClaudeApiService.kt        # deprecated typealias → GeminiApiService (do not touch)
 ├── data/db/
-│   ├── AppDatabase.kt             # Room singleton
+│   ├── AppDatabase.kt             # Room singleton, version 2, fallbackToDestructiveMigration
 │   ├── Garment.kt / GarmentDao.kt
 │   └── CaregiverProfile.kt / CaregiverProfileDao.kt
 ├── telecom/
@@ -59,18 +55,17 @@ app/src/main/java/com/clothcall/
 ├── ui/
 │   ├── navigation/AppNavigation.kt
 │   ├── screens/
-│   │   ├── HomeScreen.kt          # profile + garment dropdowns, Home/Out toggle
+│   │   ├── HomeScreen.kt          # profile dropdown, Home/Out toggle, "Check My Clothes" button
 │   │   ├── ApiKeySetupScreen.kt   # Groq API key entry
 │   │   ├── QuickScanScreen.kt     # camera capture → ScanViewModel.analyze()
 │   │   ├── CallUIScreen.kt        # ringing → speaking → listening → dismissed
 │   │   ├── CaregiverSetupScreen.kt
 │   │   ├── WardrobeScreen.kt
-│   │   ├── MorningSpinScreen.kt   # multi-frame slow-spin capture (3 frames, 2 s apart)
 │   │   └── SharedComposables.kt   # LoadingOverlay, ErrorOverlay, PermissionDeniedScreen
 │   ├── viewmodels/
 │   │   ├── ScanViewModel.kt       # image → base64 → baseline load → Groq → ScanResultHolder
 │   │   ├── CallViewModel.kt       # CallPhase state machine + AudioRouter + STT retry key
-│   │   ├── HomeViewModel.kt       # profiles + garments + selectedGarmentId
+│   │   ├── HomeViewModel.kt       # profiles + garments + selectedGarmentId (garments unused in UI)
 │   │   ├── WardrobeViewModel.kt
 │   │   └── CaregiverViewModel.kt
 │   └── theme/
@@ -78,14 +73,14 @@ app/src/main/java/com/clothcall/
 └── utils/
     ├── PreferencesManager.kt      # SharedPreferences: apiKey, isOutMode, selectedGarmentId
     ├── ScanResultHolder.kt        # in-memory singleton bridge scan→call
-    └── AudioRouter.kt             # AudioManager mode switching (earpiece / speaker / reset)
+    └── AudioRouter.kt             # AudioManager mode switching + own TTS engine (initTts/speak/shutdown)
 ```
 
 ## Data flow: scan to call
 
 ```
 HomeScreen
-  → user selects garment from dropdown (sets prefs.selectedGarmentId)
+  → user selects profile from dropdown (sets active profile in DB)
   → user taps "Check My Clothes"
 
 QuickScanScreen
@@ -93,14 +88,10 @@ QuickScanScreen
   → ScanViewModel.analyze(bitmap)
       → bitmap compressed to JPEG, base64-encoded → ScanResultHolder.base64Image
       → loadBaselineBase64()
-          → prefs.selectedGarmentId >= 0?
-              yes → garmentDao.getGarmentById(id) → load File → base64
-                  → ScanResultHolder.baselineBase64 = baseline
-              no  → ScanResultHolder.baselineBase64 = null
+          → prefs.selectedGarmentId is always -1 (no UI to set it)
+              → always returns null → stain-only path runs
       → caregiverDao.getActiveProfile() → caregiverName, fadeThreshold
-      → GeminiApiService.analyzeClothing(
-            base64Image, baselineBase64?, caregiverName, fadeThreshold)
-          → baselineBase64 != null → userMessageWithTwoImages + SYSTEM_PROMPT
+      → GeminiApiService.analyzeClothing(base64Image, null, caregiverName, fadeThreshold)
           → baselineBase64 == null → userMessageWithImage + STAIN_ONLY_PROMPT
       → ScanResultHolder.response = text → ScanState.Done
   → navigate to Route.CALL_UI
@@ -110,18 +101,19 @@ CallUIScreen
   → CallViewModel.reset()              → CallPhase.Ringing
   → user taps Answer → .answer()
       → AudioRouter.routeToEarpiece()  (Out) or .routeToSpeaker() (Home)
-      → CallPhase.Speaking
-  → TTS reads ScanResultHolder.response
-  → TTS done → .onTtsDone()            → CallPhase.Listening
+      → CallPhase.Speaking (after 2 s delay)
+  → TTS (local TextToSpeech in CallUIScreen) reads ScanResultHolder.response
+  → TTS done → .onTtsDone()           → CallPhase.Listening
   → LaunchedEffect(phase, listeningKey) → startListening()
   → STT result → .handleVoiceCommand()
-      "yes"/"no"      → CallPhase.Dismissed(warm=…)
-      "repeat"        → transitionToSpeaking()
-      "more"/"detail" → fetchMoreDetail()
-                         → GeminiApiService.requestMoreDetail(base64, baseline?, …)
-                         → transitionToSpeaking() with new text
-      "already"       → Dismissed(warm=true)
-      blank/unknown   → retryListening() → listeningKey++ → STT restarts
+      "yes"/"i'll wear"/"wear it"  → CallPhase.Dismissed(warm=true)
+      "no"/"change"/"i'll change"  → CallPhase.Dismissed(warm=false)
+      "repeat"/"again"             → transitionToSpeaking()
+      "more"/"detail"/"fade"/etc.  → fetchMoreDetail()
+                                      → GeminiApiService.requestMoreDetail(...)
+                                      → transitionToSpeaking() with new text
+      "already"/"already know"     → stores first sentence in reportedStains → Dismissed(warm=true)
+      blank/unknown                → retryListening() → listeningKey++ → STT restarts
   → Dismissed → TTS "Enjoy your day." (warm=true) → navigate Home
   → onCleared → AudioRouter.resetRouting()
 ```
@@ -129,16 +121,19 @@ CallUIScreen
 ## Key design decisions
 
 ### ScanResultHolder singleton
-`ScanResultHolder` is an in-memory `object` bridging `ScanViewModel` and `CallViewModel`. Fields: `base64Image`, `baselineBase64`, `response`, `caregiverName`, `fadeThreshold`, `conversationHistory`. Reset at the start of each new scan via `reset()`. Do not make it dependency-injected — the current design is intentionally lightweight.
+`ScanResultHolder` is an in-memory `object` bridging `ScanViewModel` and `CallViewModel`. Fields: `base64Image`, `baselineBase64`, `response`, `caregiverName`, `fadeThreshold`, `conversationHistory`, `reportedStains`. Reset at the start of each new scan via `reset()`. Do not make it dependency-injected — the current design is intentionally lightweight.
+
+### caregiverName in CallViewModel
+`CallViewModel.caregiverName` is hardcoded to `"ClothCall"` — it does **not** read from `ScanResultHolder.caregiverName`. The ringing screen and in-call screen always display "ClothCall" as the caller name, regardless of the active caregiver profile.
 
 ### Baseline image flow
-`prefs.selectedGarmentId` (Int, default -1) stores which wardrobe item is being worn. `ScanViewModel.loadBaselineBase64()` reads `garmentDao.getGarmentById(id)`, loads the file from disk, and converts it to base64. If the file is missing or no garment is selected, `baselineBase64` is `null` and the stain-only path runs. The selection persists across sessions (stored in SharedPreferences) and is changed via the garment dropdown on HomeScreen.
+`prefs.selectedGarmentId` (Int, default -1) is intended to store which wardrobe item is being worn. There is currently no UI that sets this value; it stays at -1 across all sessions. `ScanViewModel.loadBaselineBase64()` returns null whenever the id is -1, keeping the app permanently in stain-only mode. The baseline comparison code path is complete and correct — it is simply never triggered.
 
 ### STT retry — listeningKey
 `CallViewModel` holds `_listeningKey: MutableStateFlow<Int>`. `retryListening()` increments it when already in `CallPhase.Listening`, instead of re-setting the same phase value (which would not trigger `StateFlow` emission). `CallUIScreen` uses `LaunchedEffect(phase, listeningKey)` so STT restarts on every retry. STT blank results and errors call `retryListening()` directly — they never reach `handleVoiceCommand`.
 
 ### Caregiver profile calibration
-`CaregiverSetupScreen` shows shirt and jeans silhouettes (drawn via Canvas) at five fade levels (0%, 5%, 10%, 20%, 30%). The trusted person rates each as *Still fine / Borderline / Retire*. `computeOverallThreshold()` averages both and stores a single `Int` on `CaregiverProfile.fadeThreshold`. Passed into the Groq prompt so the AI calibrates language to that person's tolerance.
+`CaregiverSetupScreen` shows a horizontal scrollable list of fabric images at five fade levels (0%, 5%, 10%, 20%, 30%), rendered with `ColorFilter.colorMatrix` to simulate fading. The trusted person rates each as *Still fine / Borderline / Retire*. `computeOverallThreshold()` finds the first level rated Borderline or Retire and stores it as a single `Int` on `CaregiverProfile.fadeThreshold`. Passed into the Groq prompt so the AI calibrates language to that person's tolerance.
 
 ### Prompt rules (both prompts)
 - Passive voice throughout
@@ -152,6 +147,8 @@ Do not loosen these constraints — they exist to protect user autonomy and dign
 
 ### Audio routing
 `AudioRouter` is created inside `CallViewModel.factory()` using `APPLICATION_KEY` app context. `transitionToSpeaking()` calls `routeToEarpiece()` (Out mode → `MODE_IN_CALL`) or `routeToSpeaker()` (Home mode → `MODE_NORMAL` + speakerphone). `onCleared()` calls `resetRouting()`. The `CallUIScreen` `DisposableEffect` also resets audio on dispose — the two resets are idempotent.
+
+`AudioRouter` also contains a self-contained TTS engine (`initTts`, `speak`, `stop`, `shutdown`) that is **not currently used** by `CallViewModel`. TTS in the call flow is handled by a local `TextToSpeech` instance created directly inside `CallUIScreen`'s `DisposableEffect`.
 
 ### Telecom self-managed call
 `TelecomHelper.startIncomingCall()` calls `TelecomManager.addNewIncomingCall()`. Creates a real system call visible on the lock screen. If the device blocks self-managed calls, the flow degrades silently to in-app audio — never crash.
@@ -183,7 +180,7 @@ The class is named `GeminiApiService` and the file kept as `GeminiApiService.kt`
 }
 ```
 
-Single-image (stain-only) omits the first `image_url` part.  
+Single-image (stain-only, always active) omits the first `image_url` part.  
 Multi-turn (`requestMoreDetail`) appends an `assistant` message then a new `user` text message.  
 Response parsed at: `choices[0].message.content`
 
@@ -200,7 +197,7 @@ Requires a **Groq API key** (`gsk_...`) from console.groq.com. Entered at first 
 
 | Permission | Used for |
 |---|---|
-| `CAMERA` | Photo capture in QuickScan + Wardrobe + MorningSpin |
+| `CAMERA` | Photo capture in QuickScan + Wardrobe |
 | `RECORD_AUDIO` | STT in CallUI and WardrobeScreen name input |
 | `INTERNET` | Groq REST API calls |
 | `MODIFY_AUDIO_SETTINGS` | Speakerphone / earpiece routing |
@@ -210,7 +207,9 @@ Requires a **Groq API key** (`gsk_...`) from console.groq.com. Entered at first 
 ## What does not exist yet
 
 - No tests (unit or instrumented).
+- **No garment selector UI** — `selectedGarmentId` is always -1. The fading comparison path (two-image Groq request with `SYSTEM_PROMPT`) is coded but never triggered. To enable it, a garment picker needs to be added somewhere in the scan flow and wired to `prefs.selectedGarmentId`.
 - `ScanResultHolder.conversationHistory` is populated but never read — multi-turn context beyond the first follow-up is not implemented.
-- No UI to select which garment is being worn from within the scan flow itself — selection is done on HomeScreen before scanning.
+- `CallViewModel.caregiverName` is hardcoded to `"ClothCall"` and does not show the active caregiver's name on the call screen.
+- `AudioRouter`'s own TTS methods (`initTts`, `speak`, `shutdown`) are never called — the call flow uses a local `TextToSpeech` instance inside `CallUIScreen` instead.
 - Wardrobe baseline comparison quality depends on lighting/angle consistency between the saved photo and the scan photo — no guidance is given to the user about this.
-- `MorningSpinScreen` uses only the last of 3 captured frames for analysis — multi-frame averaging or best-frame selection is not implemented.
+- `SpeechRecognizer.isRecognitionAvailable()` is checked in `CallUIScreen` before creating the recognizer but not in `WardrobeScreen`'s `NameGarmentScreen`, which could crash on devices without STT support.

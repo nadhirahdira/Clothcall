@@ -9,6 +9,7 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
+import com.clothcall.utils.ScanResultHolder
 import java.util.concurrent.TimeUnit
 
 private const val TAG = "GroqAPI"
@@ -16,26 +17,46 @@ private const val BASE_URL = "https://api.groq.com/openai/v1/chat/completions"
 private const val MODEL = "meta-llama/llama-4-scout-17b-16e-instruct"
 
 private val SYSTEM_PROMPT = """
-You are a private clothing condition assistant for ClothCall. Analyze this clothing image and report only what you observe. Use passive voice. Be location-specific for stains ('darker mark near the right cuff'). Use soft comparative language for fading ('this has drifted noticeably from a fresh shirt'). Never command the user. If uncertain, say so openly. End every report with: Do you still want to wear it?
+You are a clothing condition assistant. You receive two images: the first is a baseline photo of a garment when it was in good condition, the second is today's photo of the same garment being worn.
 
-Language rules:
-- Stains: sharp, location-specific descriptions only
-- Fading: soft, trend-based language; reference the caregiver by name when provided
-- Uncertainty: admit it openly, do not speculate beyond the image
-- Always end with exactly: Do you still want to wear it?
-- Never use the phrases "you should", "you must", or "change your shirt"
-- Always use passive voice throughout
+Your job is to compare them and report any stains, marks, or fading visible in today's photo that were not present or were less visible in the baseline.
+
+Rules you must follow without exception:
+- Never say "I am an AI", "as an AI", "I should note", "I cannot", "I would suggest", or any self-referential language
+- Never add disclaimers, caveats, safety notes, or suggestions to consult anyone
+- Never use commanding language: never say "you should", "you must", "I recommend", "consider", or "make sure"
+- Use passive voice: "a mark is visible" not "I can see a mark", "fading is noticeable" not "I notice fading"
+- Describe stain location precisely using garment region and side: "near the lower left cuff", "along the right collar edge", "on the front center panel"
+- For fading, compare directly to the baseline using soft language: "appears slightly lighter than the baseline photo", "color drift is visible around the shoulder area compared to the reference"
+- If a caregiver name and threshold are provided, reference them by name: "this is around where [name] marked similar items as borderline", "still within the range [name] considered fine", "this has passed the level [name] marked as acceptable"
+- If confidence is low due to lighting or angle, say so in one short phrase before the final question: "Lighting makes this difficult to assess with certainty, but a faint mark appears near the left pocket."
+- Maximum length: 3 sentences total plus the final question
+- The last sentence of every response must be exactly: Do you still want to wear it?
+- Do not add anything after that sentence
 """.trimIndent()
 
-private val STAIN_ONLY_PROMPT = """
-You are a private clothing condition assistant for ClothCall. Analyze this clothing image for visible stains, marks, discoloration, or damage only. Use passive voice. Be location-specific ('darker mark near the right cuff'). Admit uncertainty openly. Never command the user. Reference the caregiver by name when provided. If nothing concerning is visible, say so clearly. End every report with exactly: Do you still want to wear it?
+private val SINGLE_IMAGE_PROMPT = """
+You are a clothing condition assistant. You receive one image of a garment.
 
-Language rules:
-- Stains: sharp, location-specific descriptions only
-- Uncertainty: admit it openly, do not speculate beyond the image
-- Always end with exactly: Do you still want to wear it?
-- Never use the phrases "you should", "you must", or "change your shirt"
-- Always use passive voice throughout
+Your job is to report any visible stains, marks, discoloration, damage, or fading based on the garment's current appearance.
+
+Rules you must follow without exception:
+- Never say "I am an AI", "as an AI", "I should note", "I cannot", or any self-referential language
+- Never add disclaimers, caveats, or suggestions
+- Never use commanding language: never say "you should", "you must", or "I recommend"
+- Use passive voice throughout: "a mark is visible" not "I can see a mark", "fading is apparent" not "I notice fading"
+- Describe stain location precisely: "near the lower left cuff", "along the right collar edge"
+- Assess fading based on the garment's current visible appearance — describe overall color saturation and visible wear
+- If a caregiver name and fade threshold are provided in the user message, calibrate your fading language exactly to their tolerance:
+  - Fading clearly below the threshold → "still within the range [name] considers acceptable"
+  - Fading at or near the threshold → "around the level [name] marked as borderline"
+  - Fading clearly above the threshold → "this has passed the level [name] marked as acceptable"
+- If a caregiver name is provided, reference them by name when describing both stains and fading
+- If nothing is found, say: "No visible marks, stains, or fading were detected on this garment. Do you still want to wear it?"
+- If confidence is low due to lighting or angle, say so in one short phrase before the assessment
+- Maximum length: 3 sentences total plus the final question
+- The last sentence of every response must be exactly: Do you still want to wear it?
+- Do not add anything after that sentence
 """.trimIndent()
 
 class GeminiApiService {
@@ -55,10 +76,11 @@ class GeminiApiService {
     ): Result<String> = withContext(Dispatchers.IO) {
         runCatching {
             Log.d(TAG, "analyzeClothing — base64 len: ${base64Image.length}, hasBaseline: ${baselineBase64 != null}")
+            val reportedStains = ScanResultHolder.reportedStains.takeIf { it.isNotEmpty() }?.joinToString("; ")
             val (userMsg, systemPrompt) = if (baselineBase64 != null) {
-                userMessageWithTwoImages(baselineBase64, base64Image, caregiverName, fadeThreshold) to SYSTEM_PROMPT
+                userMessageWithTwoImages(baselineBase64, base64Image, caregiverName, fadeThreshold, reportedStains) to SYSTEM_PROMPT
             } else {
-                userMessageWithImage(base64Image, caregiverName) to STAIN_ONLY_PROMPT
+                userMessageWithImage(base64Image, caregiverName, fadeThreshold, reportedStains) to SINGLE_IMAGE_PROMPT
             }
             val messages = JSONArray().apply {
                 put(systemMessage(systemPrompt))
@@ -74,25 +96,22 @@ class GeminiApiService {
         apiKey: String,
         base64Image: String,
         baselineBase64: String? = null,
+        followUpText: String,
         firstResponseText: String,
         caregiverName: String?,
         fadeThreshold: Int?
     ): Result<String> = withContext(Dispatchers.IO) {
         runCatching {
-            val followUp = buildString {
-                append("Please provide more specific detail — focus on any areas that were only briefly mentioned.")
-                if (caregiverName != null) append(" Remember, the trusted person is $caregiverName.")
-            }
             val (firstUserMsg, systemPrompt) = if (baselineBase64 != null) {
-                userMessageWithTwoImages(baselineBase64, base64Image, caregiverName, fadeThreshold) to SYSTEM_PROMPT
+                userMessageWithTwoImages(baselineBase64, base64Image, caregiverName, fadeThreshold, null) to SYSTEM_PROMPT
             } else {
-                userMessageWithImage(base64Image, caregiverName) to STAIN_ONLY_PROMPT
+                userMessageWithImage(base64Image, caregiverName, fadeThreshold, null) to SINGLE_IMAGE_PROMPT
             }
             val messages = JSONArray().apply {
                 put(systemMessage(systemPrompt))
                 put(firstUserMsg)
-                put(assistantMessage(firstResponseText))
-                put(userMessageText(followUp))
+                put(assistantMessage(ScanResultHolder.conversationHistory.firstOrNull()?.second ?: firstResponseText))
+                put(userMessageText(followUpText))
             }
             extractText(post(apiKey, buildBody(messages)))
         }.also { result ->
@@ -121,12 +140,22 @@ class GeminiApiService {
 
     private fun userMessageWithImage(
         base64Image: String,
-        caregiverName: String?
+        caregiverName: String?,
+        fadeThreshold: Int?,
+        reportedStains: String?
     ): JSONObject {
         val text = buildString {
             append("Please analyze this clothing item.")
             if (caregiverName != null) {
-                append(" The trusted person for this check is called $caregiverName. Reference them by name in your response.")
+                append(" Caregiver name: $caregiverName.")
+            }
+            if (fadeThreshold != null) {
+                append(" Fade threshold: $fadeThreshold%.")
+                append(" Any fading below this threshold should be described as still acceptable to them.")
+                append(" Any fading at or above this threshold should be described as at or past their limit.")
+            }
+            if (!reportedStains.isNullOrBlank()) {
+                append(" Already reported this session and must not be mentioned again: $reportedStains. Only describe new findings not in this list.")
             }
         }
         return JSONObject().apply {
@@ -142,15 +171,18 @@ class GeminiApiService {
         baselineBase64: String,
         currentBase64: String,
         caregiverName: String?,
-        fadeThreshold: Int?
+        fadeThreshold: Int?,
+        reportedStains: String?
     ): JSONObject {
         val text = buildString {
             append("The first image is the baseline reference for this garment. The second image is what is being worn today. Compare them for fading, stains, and condition changes.")
             if (caregiverName != null) {
-                append(" The trusted person for this check is called $caregiverName. Reference them by name in your response.")
-                if (fadeThreshold != null) {
-                    append(" Their fade tolerance is $fadeThreshold%.")
-                }
+                append(" Caregiver name: $caregiverName. Fade threshold: ${fadeThreshold ?: 0}%. Any fading below this threshold should be described as still acceptable to them. Any fading at or above this threshold should be described as at or past their limit.")
+            } else if (fadeThreshold != null) {
+                append(" Fade threshold: $fadeThreshold%. Any fading below this threshold should be described as still acceptable to them. Any fading at or above this threshold should be described as at or past their limit.")
+            }
+            if (!reportedStains.isNullOrBlank()) {
+                append(" Already reported this session and must not be mentioned again: $reportedStains. Only describe new findings not in this list.")
             }
         }
         return JSONObject().apply {

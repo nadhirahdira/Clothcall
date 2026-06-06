@@ -20,7 +20,6 @@ object Route {
     const val CALL_UI = "call_ui"
     const val WARDROBE = "wardrobe"
     const val CAREGIVER_SETUP = "caregiver_setup"
-    const val MORNING_SPIN = "morning_spin"
 }
 
 @Composable
@@ -33,12 +32,15 @@ fun AppNavigation(navController: NavHostController, startDestination: String) {
     val caregiverDao = app.database.caregiverProfileDao()
     val garmentDao = app.database.garmentDao()
 
-    // Shared ScanViewModel so QuickScan, MorningSpin, and CallUI see the same result
+    // Shared ScanViewModel so QuickScan and CallUI see the same result
     val scanViewModel: ScanViewModel = viewModel(
         factory = ScanViewModel.factory(apiService, caregiverDao, garmentDao, prefs)
     )
     val callViewModel: CallViewModel = viewModel(
         factory = CallViewModel.factory(apiService, prefs)
+    )
+    val wardrobeViewModel: WardrobeViewModel = viewModel(
+        factory = WardrobeViewModel.factory(garmentDao)
     )
 
     NavHost(navController = navController, startDestination = startDestination) {
@@ -74,9 +76,6 @@ fun AppNavigation(navController: NavHostController, startDestination: String) {
         }
 
         composable(Route.WARDROBE) {
-            val wardrobeViewModel: WardrobeViewModel = viewModel(
-                factory = WardrobeViewModel.factory(garmentDao)
-            )
             WardrobeScreen(navController = navController, viewModel = wardrobeViewModel)
         }
 
@@ -86,13 +85,5 @@ fun AppNavigation(navController: NavHostController, startDestination: String) {
             )
             CaregiverSetupScreen(navController = navController, viewModel = caregiverViewModel)
         }
-
-        composable(Route.MORNING_SPIN) {
-            MorningSpinScreen(
-                navController = navController,
-                viewModel = scanViewModel
-            )
-        }
-
     }
 }

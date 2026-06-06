@@ -15,6 +15,9 @@ object TelecomHelper {
 
     const val EXTRA_CAREGIVER_NAME = "caregiver_name"
 
+    @Volatile
+    var telecomAvailable: Boolean = true
+
     var activeConnection: ClothCallConnection? = null
 
     fun registerAccount(context: Context) {
@@ -42,8 +45,13 @@ object TelecomHelper {
                 putString(EXTRA_CAREGIVER_NAME, caregiverName)
             }
             telecomManager.addNewIncomingCall(handle(context), extras)
+            telecomAvailable = true
             Log.d(TAG, "addNewIncomingCall → $caregiverName")
+        } catch (e: SecurityException) {
+            telecomAvailable = false
+            Log.e(TAG, "startIncomingCall blocked by security policy — using in-app audio only", e)
         } catch (e: Exception) {
+            telecomAvailable = false
             Log.e(TAG, "startIncomingCall failed — no system call created", e)
         }
     }

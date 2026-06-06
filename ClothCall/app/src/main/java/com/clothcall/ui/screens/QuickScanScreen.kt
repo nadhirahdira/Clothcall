@@ -7,10 +7,10 @@ import android.util.Log
 import androidx.camera.core.*
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.*
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Camera
-import androidx.compose.material.icons.filled.FlipCameraAndroid
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -21,10 +21,15 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.navigation.NavController
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Camera
+import androidx.compose.material.icons.filled.FlipCameraAndroid
+import com.clothcall.data.db.Garment
 import com.clothcall.telecom.TelecomHelper
 import com.clothcall.ui.navigation.Route
 import com.clothcall.ui.viewmodels.ScanState
 import com.clothcall.ui.viewmodels.ScanViewModel
+import com.clothcall.utils.PreferencesManager
 import com.clothcall.utils.ScanResultHolder
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
@@ -32,7 +37,11 @@ import com.google.accompanist.permissions.rememberMultiplePermissionsState
 
 @OptIn(ExperimentalPermissionsApi::class)
 @Composable
-fun QuickScanScreen(navController: NavController, viewModel: ScanViewModel, isOutMode: Boolean = false) {
+fun QuickScanScreen(
+    navController: NavController,
+    viewModel: ScanViewModel,
+    isOutMode: Boolean = false
+) {
     val permissions = rememberMultiplePermissionsState(
         listOf(
             android.Manifest.permission.CAMERA,
@@ -72,13 +81,14 @@ fun QuickScanScreen(navController: NavController, viewModel: ScanViewModel, isOu
         }
         else -> CameraCapture(
             onCapture = { bitmap -> viewModel.analyze(bitmap) },
-            onBack = { navController.popBackStack() }
         )
     }
 }
 
 @Composable
-private fun CameraCapture(onCapture: (Bitmap) -> Unit, onBack: () -> Unit) {
+private fun CameraCapture(
+    onCapture: (Bitmap) -> Unit
+) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val cameraProviderFuture = remember { ProcessCameraProvider.getInstance(context) }

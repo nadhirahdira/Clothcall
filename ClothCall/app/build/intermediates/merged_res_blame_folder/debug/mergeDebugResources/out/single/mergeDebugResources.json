@@ -32,6 +32,10 @@
         "source": "com.clothcall.app-main-69:/mipmap-hdpi/ic_launcher_round.xml"
     },
     {
+        "merged": "com.clothcall.app-debug-67:/drawable_fabric_base.png.flat",
+        "source": "com.clothcall.app-main-69:/drawable/fabric_base.png"
+    },
+    {
         "merged": "com.clothcall.app-debug-67:/mipmap-xhdpi_ic_launcher_round.xml.flat",
         "source": "com.clothcall.app-main-69:/mipmap-xhdpi/ic_launcher_round.xml"
     },

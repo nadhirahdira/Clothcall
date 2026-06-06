@@ -39,6 +39,7 @@ import com.clothcall.ui.navigation.Route
 import com.clothcall.ui.theme.CallBackground
 import com.clothcall.ui.theme.CallSurface
 import com.clothcall.ui.theme.PulseColor
+import com.clothcall.utils.AudioRouter
 import com.clothcall.ui.viewmodels.CallPhase
 import com.clothcall.ui.viewmodels.CallViewModel
 import kotlinx.coroutines.delay
@@ -54,7 +55,7 @@ fun CallUIScreen(
     val context = LocalContext.current
     val phase by viewModel.phase.collectAsState()
     val listeningKey by viewModel.listeningKey.collectAsState()
-    val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+    val audioRouter = remember { AudioRouter(context) }
     val scope = rememberCoroutineScope()
 
     var tts by remember { mutableStateOf<TextToSpeech?>(null) }
@@ -76,8 +77,8 @@ fun CallUIScreen(
         ringPlayer.value = player
 
         // Vibration — pattern: wait 0ms, vibrate 800ms, pause 600ms, repeat
-        val vib = context.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
-        vib.vibrate(VibrationEffect.createWaveform(longArrayOf(0, 800, 600), 0))
+        val vib = context.getSystemService(Vibrator::class.java)
+        vib?.vibrate(VibrationEffect.createWaveform(longArrayOf(0, 800, 600), 0))
         vibrator.value = vib
 
         // TTS — use a var so the callback can reference it safely after construction
@@ -100,12 +101,13 @@ fun CallUIScreen(
 
         onDispose {
             player?.stop(); player?.release()
-            vib.cancel()
-            ttsEngine?.stop(); ttsEngine?.shutdown()
+            vib?.cancel()
+            val engine = ttsEngine
+            engine?.stop()
+            engine?.shutdown()
             stt?.destroy()
             if (isOutMode) TelecomHelper.endCall()
-            audioManager.mode = AudioManager.MODE_NORMAL
-            audioManager.isSpeakerphoneOn = false
+            audioRouter.resetRouting()
         }
     }
 
@@ -114,7 +116,7 @@ fun CallUIScreen(
         ringPlayer.value?.stop(); ringPlayer.value?.release(); ringPlayer.value = null
         vibrator.value?.cancel()
         if (isOutMode) TelecomHelper.answerCall()
-        else { audioManager.mode = AudioManager.MODE_NORMAL; audioManager.isSpeakerphoneOn = true }
+        else audioRouter.routeToSpeaker()
         scope.launch {
             delay(2_000)
             viewModel.answer()
@@ -145,7 +147,7 @@ fun CallUIScreen(
     LaunchedEffect(phase, listeningKey) {
         if (phase is CallPhase.Listening) {
             delay(300)
-            startListening(stt, context) { words ->
+            startListening(stt) { words ->
                 if (words.isBlank()) viewModel.retryListening()
                 else viewModel.handleVoiceCommand(words)
             }
@@ -381,7 +383,12 @@ private fun InCallScreen(
                 modifier = Modifier.size(28.dp)
             )
             if (isListening) {
-                Text("Say: yes / no / tell me again / more detail", color = Color.Gray, style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center)
+                Text(
+                    text = "Listening for your reply...",
+                    color = Color.White.copy(alpha = 0.7f),
+                    style = MaterialTheme.typography.bodyMedium,
+                    textAlign = TextAlign.Center
+                )
             }
         }
 
@@ -402,7 +409,7 @@ private fun speakText(tts: TextToSpeech, text: String, onDone: () -> Unit) {
     tts.speak(text, TextToSpeech.QUEUE_FLUSH, Bundle(), "cc_call")
 }
 
-private fun startListening(stt: SpeechRecognizer?, context: Context, onResult: (String) -> Unit) {
+private fun startListening(stt: SpeechRecognizer?, onResult: (String) -> Unit) {
     val recognizer = stt ?: return
     recognizer.setRecognitionListener(object : RecognitionListener {
         override fun onReadyForSpeech(p: Bundle?) {}
@@ -410,7 +417,10 @@ private fun startListening(stt: SpeechRecognizer?, context: Context, onResult: (
         override fun onRmsChanged(v: Float) {}
         override fun onBufferReceived(b: ByteArray?) {}
         override fun onEndOfSpeech() {}
-        override fun onPartialResults(r: Bundle?) {}
+        override fun onPartialResults(r: Bundle?) {
+            val partial = r?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull().orEmpty()
+            if (partial.isNotBlank()) onResult(partial)
+        }
         override fun onEvent(e: Int, p: Bundle?) {}
         override fun onError(e: Int) {
             android.util.Log.w("ClothCall_STT", "STT error code $e")
@@ -425,6 +435,9 @@ private fun startListening(stt: SpeechRecognizer?, context: Context, onResult: (
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
             putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault())
             putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
+            putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 2000L)
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 1000L)
         }
     )
 }

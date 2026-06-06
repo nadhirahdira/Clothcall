@@ -35,7 +35,7 @@ class CallViewModel(
     val listeningKey: StateFlow<Int> = _listeningKey
 
     val responseText: String get() = ScanResultHolder.response
-    val caregiverName: String get() = "ClothCall"
+    val caregiverName: String get() = ScanResultHolder.caregiverName ?: "ClothCall"
 
     fun reset() { _phase.value = CallPhase.Ringing }
 
@@ -52,10 +52,19 @@ class CallViewModel(
                 _phase.value = CallPhase.Dismissed(warm = false)
             "again" in lower || "repeat" in lower ->
                 transitionToSpeaking()
-            "more detail" in lower || "more" in lower || "detail" in lower ->
-                fetchMoreDetail()
+            "more detail" in lower || "more" in lower || "detail" in lower ||
+                "fade" in lower || "fading" in lower ||
+                "stain" in lower || "what about" in lower || "how about" in lower ->
+                fetchMoreDetail(words)
             "already know" in lower || "already" in lower -> {
-                ScanResultHolder.response = "Got it."
+                val firstSentence = ScanResultHolder.response
+                    .split(Regex("(?<=[.!?])\\s+"))
+                    .firstOrNull()
+                    ?.trim()
+                    .orEmpty()
+                if (firstSentence.isNotBlank()) {
+                    ScanResultHolder.reportedStains.add(firstSentence.take(60).trim())
+                }
                 _phase.value = CallPhase.Dismissed(warm = true)
             }
             else -> retryListening()
@@ -75,19 +84,25 @@ class CallViewModel(
         _phase.value = CallPhase.Speaking
     }
 
-    private fun fetchMoreDetail() {
+    private fun fetchMoreDetail(followUpQuery: String) {
         _phase.value = CallPhase.FetchingDetail
         viewModelScope.launch {
+            val followUpText = followUpQuery.trim().ifBlank {
+                "Please provide more specific detail — focus on any areas that were only briefly mentioned."
+            }
             val result = apiService.requestMoreDetail(
                 apiKey = prefs.apiKey,
                 base64Image = ScanResultHolder.base64Image,
                 baselineBase64 = ScanResultHolder.baselineBase64,
+                followUpText = followUpText,
                 firstResponseText = ScanResultHolder.response,
                 caregiverName = ScanResultHolder.caregiverName,
                 fadeThreshold = ScanResultHolder.fadeThreshold
             )
             result.onSuccess { text ->
                 ScanResultHolder.response = text
+                ScanResultHolder.conversationHistory.add("user" to followUpText)
+                ScanResultHolder.conversationHistory.add("assistant" to text)
                 transitionToSpeaking()
             }.onFailure { e ->
                 _phase.value = CallPhase.Error(e.message ?: "Network error")

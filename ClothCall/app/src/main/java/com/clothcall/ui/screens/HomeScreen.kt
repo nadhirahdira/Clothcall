@@ -11,10 +11,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.clothcall.data.db.CaregiverProfile
-import com.clothcall.data.db.Garment
 import com.clothcall.ui.navigation.Route
 import com.clothcall.ui.viewmodels.HomeViewModel
-import com.clothcall.utils.ScanResultHolder
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -23,13 +21,9 @@ fun HomeScreen(
     viewModel: HomeViewModel
 ) {
     val profiles by viewModel.profiles.collectAsState()
-    val garments by viewModel.garments.collectAsState()
     var outMode by remember { mutableStateOf(viewModel.isOutMode) }
     var profileDropdownExpanded by remember { mutableStateOf(false) }
-    var garmentDropdownExpanded by remember { mutableStateOf(false) }
     val activeProfile = profiles.firstOrNull { it.isActive } ?: profiles.firstOrNull()
-    var selectedGarmentId by remember { mutableIntStateOf(viewModel.selectedGarmentId) }
-    val selectedGarment = garments.firstOrNull { it.id == selectedGarmentId }
 
     Scaffold(
         topBar = {
@@ -67,20 +61,6 @@ fun HomeScreen(
                 }
             )
 
-            // Garment selector — drives baseline comparison
-            GarmentDropdown(
-                garments = garments,
-                selected = selectedGarment,
-                expanded = garmentDropdownExpanded,
-                onToggle = { garmentDropdownExpanded = !garmentDropdownExpanded },
-                onSelect = { garment ->
-                    val newId = garment?.id ?: -1
-                    selectedGarmentId = newId
-                    viewModel.selectedGarmentId = newId
-                    garmentDropdownExpanded = false
-                }
-            )
-
             // Home / Out toggle
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -103,42 +83,6 @@ fun HomeScreen(
             }
 
             Spacer(Modifier.height(16.dp))
-
-            // Morning Spin
-            TextButton(
-                onClick = { navController.navigate(Route.MORNING_SPIN) },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text(
-                    "Morning Spin",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.outline
-                )
-            }
-
-            // Preview call
-            TextButton(
-                onClick = {
-                    ScanResultHolder.response = "A navy blue shirt is being examined. " +
-                        "The fabric overall appears in good condition. " +
-                        "A faint darker mark has been noticed near the right cuff, " +
-                        "roughly the size of a fingertip — it could be a water stain or a light contact mark. " +
-                        "The collar and shoulders show no signs of visible fading, though this shirt " +
-                        "has drifted very slightly from how a fresh shirt would appear — " +
-                        "the tolerance level of ${activeProfile?.fadeThreshold ?: 15}% has not been exceeded. " +
-                        "Do you still want to wear it?"
-                    ScanResultHolder.caregiverName = activeProfile?.name
-                    ScanResultHolder.fadeThreshold = activeProfile?.fadeThreshold ?: 15
-                    navController.navigate(Route.CALL_UI)
-                },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text(
-                    "Preview call",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.outline
-                )
-            }
 
             // Main button
             Button(
@@ -198,50 +142,3 @@ private fun ProfileDropdown(
     }
 }
 
-@Composable
-private fun GarmentDropdown(
-    garments: List<Garment>,
-    selected: Garment?,
-    expanded: Boolean,
-    onToggle: () -> Unit,
-    onSelect: (Garment?) -> Unit
-) {
-    Box(modifier = Modifier.fillMaxWidth()) {
-        OutlinedButton(
-            onClick = onToggle,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text(
-                text = if (selected != null) "Comparing: ${selected.name}" else "Garment: None (stain check only)",
-                style = MaterialTheme.typography.bodyMedium
-            )
-        }
-        DropdownMenu(
-            expanded = expanded,
-            onDismissRequest = onToggle
-        ) {
-            // None option — clears baseline, stain-only mode
-            DropdownMenuItem(
-                text = {
-                    Text(
-                        "None — stain check only",
-                        color = MaterialTheme.colorScheme.outline
-                    )
-                },
-                onClick = { onSelect(null) }
-            )
-            if (garments.isEmpty()) {
-                DropdownMenuItem(
-                    text = { Text("No garments saved — add one in Wardrobe") },
-                    onClick = onToggle
-                )
-            }
-            garments.forEach { garment ->
-                DropdownMenuItem(
-                    text = { Text(garment.name) },
-                    onClick = { onSelect(garment) }
-                )
-            }
-        }
-    }
-}

@@ -61,10 +61,10 @@ com.clothcall.app-customview-poolingcontainer-1.0.0-59 /Users/amen/.gradle/cache
 com.clothcall.app-ui-geometry-release-60 /Users/amen/.gradle/caches/8.13/transforms/f85fd231edc375c4cd5f02796e7e9316/transformed/ui-geometry-release/res
 com.clothcall.app-animation-release-61 /Users/amen/.gradle/caches/8.13/transforms/fde5c1f04c8b19f42eac0e14168990bc/transformed/animation-release/res
 com.clothcall.app-material-ripple-release-62 /Users/amen/.gradle/caches/8.13/transforms/ffe99e3bbac921bbc019d5367df35a97/transformed/material-ripple-release/res
-com.clothcall.app-resValues-63 /Users/amen/ClothCall/app/build/generated/res/resValues/debug
-com.clothcall.app-updated_navigation_xml-64 /Users/amen/ClothCall/app/build/generated/updated_navigation_xml/debug
-com.clothcall.app-packageDebugResources-65 /Users/amen/ClothCall/app/build/intermediates/incremental/debug/packageDebugResources/merged.dir
-com.clothcall.app-packageDebugResources-66 /Users/amen/ClothCall/app/build/intermediates/incremental/debug/packageDebugResources/stripped.dir
-com.clothcall.app-debug-67 /Users/amen/ClothCall/app/build/intermediates/merged_res/debug/mergeDebugResources
-com.clothcall.app-debug-68 /Users/amen/ClothCall/app/src/debug/res
-com.clothcall.app-main-69 /Users/amen/ClothCall/app/src/main/res
+com.clothcall.app-resValues-63 /Users/amen/Documents/GitHub/Clothcall/ClothCall/app/build/generated/res/resValues/debug
+com.clothcall.app-updated_navigation_xml-64 /Users/amen/Documents/GitHub/Clothcall/ClothCall/app/build/generated/updated_navigation_xml/debug
+com.clothcall.app-packageDebugResources-65 /Users/amen/Documents/GitHub/Clothcall/ClothCall/app/build/intermediates/incremental/debug/packageDebugResources/merged.dir
+com.clothcall.app-packageDebugResources-66 /Users/amen/Documents/GitHub/Clothcall/ClothCall/app/build/intermediates/incremental/debug/packageDebugResources/stripped.dir
+com.clothcall.app-debug-67 /Users/amen/Documents/GitHub/Clothcall/ClothCall/app/build/intermediates/merged_res/debug/mergeDebugResources
+com.clothcall.app-debug-68 /Users/amen/Documents/GitHub/Clothcall/ClothCall/app/src/debug/res
+com.clothcall.app-main-69 /Users/amen/Documents/GitHub/Clothcall/ClothCall/app/src/main/res

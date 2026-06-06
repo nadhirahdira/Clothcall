@@ -15,7 +15,6 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.io.File
 import java.io.FileOutputStream
-import java.util.UUID
 
 class WardrobeViewModel(private val garmentDao: GarmentDao) : ViewModel() {
 
@@ -24,20 +23,45 @@ class WardrobeViewModel(private val garmentDao: GarmentDao) : ViewModel() {
 
     fun addGarment(context: Context, name: String, bitmap: Bitmap) {
         viewModelScope.launch {
-            val filename = "garment_${UUID.randomUUID()}.jpg"
-            val file = File(context.filesDir, filename)
-            FileOutputStream(file).use { fos ->
-                bitmap.compress(Bitmap.CompressFormat.JPEG, 85, fos)
+            val garment = Garment(name = name, imagePath = "", baselinePath = null)
+            val garmentId = garmentDao.insertGarment(garment).toInt()
+            val file = writeGarmentBitmap(context, garmentId, bitmap)
+            garmentDao.updateGarmentPaths(garmentId, file.absolutePath, file.absolutePath)
+        }
+    }
+
+    fun updateGarment(context: Context, garment: Garment, name: String, bitmap: Bitmap?) {
+        viewModelScope.launch {
+            if (bitmap == null) {
+                garmentDao.updateGarment(garment.copy(name = name.trim()))
+            } else {
+                val file = writeGarmentBitmap(context, garment.id, bitmap)
+                garmentDao.updateGarment(
+                    garment.copy(
+                        name = name.trim(),
+                        imagePath = file.absolutePath,
+                        baselinePath = file.absolutePath
+                    )
+                )
             }
-            garmentDao.insertGarment(Garment(name = name, imagePath = file.absolutePath))
         }
     }
 
     fun deleteGarment(garment: Garment) {
         viewModelScope.launch {
             File(garment.imagePath).delete()
+            garment.baselinePath?.takeIf { it != garment.imagePath }?.let { File(it).delete() }
             garmentDao.deleteGarment(garment)
         }
+    }
+
+    private fun writeGarmentBitmap(context: Context, garmentId: Int, bitmap: Bitmap): File {
+        val garmentDir = File(context.filesDir, "garments").apply { mkdirs() }
+        val file = File(garmentDir, "$garmentId.jpg")
+        FileOutputStream(file).use { fos ->
+            bitmap.compress(Bitmap.CompressFormat.JPEG, 85, fos)
+        }
+        return file
     }
 
     companion object {

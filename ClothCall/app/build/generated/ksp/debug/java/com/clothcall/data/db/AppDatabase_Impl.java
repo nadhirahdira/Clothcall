@@ -33,13 +33,13 @@ public final class AppDatabase_Impl extends AppDatabase {
   @Override
   @NonNull
   protected SupportSQLiteOpenHelper createOpenHelper(@NonNull final DatabaseConfiguration config) {
-    final SupportSQLiteOpenHelper.Callback _openCallback = new RoomOpenHelper(config, new RoomOpenHelper.Delegate(1) {
+    final SupportSQLiteOpenHelper.Callback _openCallback = new RoomOpenHelper(config, new RoomOpenHelper.Delegate(2) {
       @Override
       public void createAllTables(@NonNull final SupportSQLiteDatabase db) {
-        db.execSQL("CREATE TABLE IF NOT EXISTS `garments` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT NOT NULL, `imagePath` TEXT NOT NULL, `dateAdded` INTEGER NOT NULL)");
+        db.execSQL("CREATE TABLE IF NOT EXISTS `garments` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT NOT NULL, `imagePath` TEXT NOT NULL, `baselinePath` TEXT, `dateAdded` INTEGER NOT NULL)");
         db.execSQL("CREATE TABLE IF NOT EXISTS `caregiver_profiles` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT NOT NULL, `fadeThreshold` INTEGER NOT NULL, `isActive` INTEGER NOT NULL)");
         db.execSQL("CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)");
-        db.execSQL("INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'cc90f69720bdd770956e86166ec570c0')");
+        db.execSQL("INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '7ae3465c2486df14ecbac63708506fe1')");
       }
 
       @Override
@@ -89,10 +89,11 @@ public final class AppDatabase_Impl extends AppDatabase {
       @NonNull
       public RoomOpenHelper.ValidationResult onValidateSchema(
           @NonNull final SupportSQLiteDatabase db) {
-        final HashMap<String, TableInfo.Column> _columnsGarments = new HashMap<String, TableInfo.Column>(4);
+        final HashMap<String, TableInfo.Column> _columnsGarments = new HashMap<String, TableInfo.Column>(5);
         _columnsGarments.put("id", new TableInfo.Column("id", "INTEGER", true, 1, null, TableInfo.CREATED_FROM_ENTITY));
         _columnsGarments.put("name", new TableInfo.Column("name", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
         _columnsGarments.put("imagePath", new TableInfo.Column("imagePath", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsGarments.put("baselinePath", new TableInfo.Column("baselinePath", "TEXT", false, 0, null, TableInfo.CREATED_FROM_ENTITY));
         _columnsGarments.put("dateAdded", new TableInfo.Column("dateAdded", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
         final HashSet<TableInfo.ForeignKey> _foreignKeysGarments = new HashSet<TableInfo.ForeignKey>(0);
         final HashSet<TableInfo.Index> _indicesGarments = new HashSet<TableInfo.Index>(0);
@@ -119,7 +120,7 @@ public final class AppDatabase_Impl extends AppDatabase {
         }
         return new RoomOpenHelper.ValidationResult(true, null);
       }
-    }, "cc90f69720bdd770956e86166ec570c0", "fd7ab830e949f6d4a4dc1eb7582866f0");
+    }, "7ae3465c2486df14ecbac63708506fe1", "ce40fa7fff6275018ebde51e234236cf");
     final SupportSQLiteOpenHelper.Configuration _sqliteConfig = SupportSQLiteOpenHelper.Configuration.builder(config.context).name(config.name).callback(_openCallback).build();
     final SupportSQLiteOpenHelper _helper = config.sqliteOpenHelperFactory.create(_sqliteConfig);
     return _helper;
