@@ -10,14 +10,11 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.clothcall.api.GeminiApiService
 import com.clothcall.data.db.CaregiverProfileDao
-import com.clothcall.data.db.Garment
 import com.clothcall.data.db.GarmentDao
 import com.clothcall.utils.PreferencesManager
 import com.clothcall.utils.ScanResultHolder
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.io.ByteArrayOutputStream
 import java.io.File
@@ -47,7 +44,10 @@ class ScanViewModel(
             val base64 = bitmapToBase64(bitmap)
             ScanResultHolder.base64Image = base64
 
-            val profile = caregiverDao.getActiveProfile()
+            // Prefer the explicitly active profile; fall back to the most recently added one
+            // so the "Trusted:" bar on the HomeScreen is always honoured even if the DB flag
+            // hasn't been written yet (e.g. first launch before any explicit selection).
+            val profile = caregiverDao.getActiveProfile() ?: caregiverDao.getFirstProfile()
             ScanResultHolder.caregiverName = profile?.name
             ScanResultHolder.fadeThreshold = profile?.fadeThreshold
 

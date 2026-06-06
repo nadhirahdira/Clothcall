@@ -1,54 +1,58 @@
 [
     {
-        "merged": "com.clothcall.app-debug-67:/mipmap-xxhdpi_ic_launcher_round.xml.flat",
-        "source": "com.clothcall.app-main-69:/mipmap-xxhdpi/ic_launcher_round.xml"
+        "merged": "/Users/amen/.gradle/daemon/8.13/com.clothcall.app-debug-67:/mipmap-hdpi_ic_launcher_round.xml.flat",
+        "source": "/Users/amen/.gradle/daemon/8.13/com.clothcall.app-main-69:/mipmap-hdpi/ic_launcher_round.xml"
     },
     {
-        "merged": "com.clothcall.app-debug-67:/mipmap-xxhdpi_ic_launcher.xml.flat",
-        "source": "com.clothcall.app-main-69:/mipmap-xxhdpi/ic_launcher.xml"
+        "merged": "/Users/amen/.gradle/daemon/8.13/com.clothcall.app-debug-67:/mipmap-mdpi_ic_launcher.xml.flat",
+        "source": "/Users/amen/.gradle/daemon/8.13/com.clothcall.app-main-69:/mipmap-mdpi/ic_launcher.xml"
+    },
+    {
+        "merged": "/Users/amen/.gradle/daemon/8.13/com.clothcall.app-debug-67:/drawable_ic_launcher_background.xml.flat",
+        "source": "/Users/amen/.gradle/daemon/8.13/com.clothcall.app-main-69:/drawable/ic_launcher_background.xml"
     },
     {
         "merged": "com.clothcall.app-debug-67:/drawable_ic_launcher_foreground.xml.flat",
         "source": "com.clothcall.app-main-69:/drawable/ic_launcher_foreground.xml"
     },
     {
-        "merged": "com.clothcall.app-debug-67:/mipmap-mdpi_ic_launcher.xml.flat",
-        "source": "com.clothcall.app-main-69:/mipmap-mdpi/ic_launcher.xml"
+        "merged": "/Users/amen/.gradle/daemon/8.13/com.clothcall.app-debug-67:/mipmap-xxhdpi_ic_launcher_round.xml.flat",
+        "source": "/Users/amen/.gradle/daemon/8.13/com.clothcall.app-main-69:/mipmap-xxhdpi/ic_launcher_round.xml"
     },
     {
-        "merged": "com.clothcall.app-debug-67:/drawable_ic_launcher_background.xml.flat",
-        "source": "com.clothcall.app-main-69:/drawable/ic_launcher_background.xml"
+        "merged": "/Users/amen/.gradle/daemon/8.13/com.clothcall.app-debug-67:/mipmap-xxhdpi_ic_launcher.xml.flat",
+        "source": "/Users/amen/.gradle/daemon/8.13/com.clothcall.app-main-69:/mipmap-xxhdpi/ic_launcher.xml"
     },
     {
-        "merged": "com.clothcall.app-debug-67:/mipmap-xxxhdpi_ic_launcher.xml.flat",
-        "source": "com.clothcall.app-main-69:/mipmap-xxxhdpi/ic_launcher.xml"
+        "merged": "/Users/amen/.gradle/daemon/8.13/com.clothcall.app-debug-67:/drawable_ic_launcher_foreground.xml.flat",
+        "source": "/Users/amen/.gradle/daemon/8.13/com.clothcall.app-main-69:/drawable/ic_launcher_foreground.xml"
     },
     {
-        "merged": "com.clothcall.app-debug-67:/mipmap-hdpi_ic_launcher.xml.flat",
-        "source": "com.clothcall.app-main-69:/mipmap-hdpi/ic_launcher.xml"
+        "merged": "/Users/amen/.gradle/daemon/8.13/com.clothcall.app-debug-67:/mipmap-xxxhdpi_ic_launcher.xml.flat",
+        "source": "/Users/amen/.gradle/daemon/8.13/com.clothcall.app-main-69:/mipmap-xxxhdpi/ic_launcher.xml"
     },
     {
-        "merged": "com.clothcall.app-debug-67:/mipmap-hdpi_ic_launcher_round.xml.flat",
-        "source": "com.clothcall.app-main-69:/mipmap-hdpi/ic_launcher_round.xml"
+        "merged": "/Users/amen/.gradle/daemon/8.13/com.clothcall.app-debug-67:/mipmap-hdpi_ic_launcher.xml.flat",
+        "source": "/Users/amen/.gradle/daemon/8.13/com.clothcall.app-main-69:/mipmap-hdpi/ic_launcher.xml"
     },
     {
-        "merged": "com.clothcall.app-debug-67:/drawable_fabric_base.png.flat",
-        "source": "com.clothcall.app-main-69:/drawable/fabric_base.png"
+        "merged": "/Users/amen/.gradle/daemon/8.13/com.clothcall.app-debug-67:/mipmap-xhdpi_ic_launcher.xml.flat",
+        "source": "/Users/amen/.gradle/daemon/8.13/com.clothcall.app-main-69:/mipmap-xhdpi/ic_launcher.xml"
     },
     {
-        "merged": "com.clothcall.app-debug-67:/mipmap-xhdpi_ic_launcher_round.xml.flat",
-        "source": "com.clothcall.app-main-69:/mipmap-xhdpi/ic_launcher_round.xml"
+        "merged": "/Users/amen/.gradle/daemon/8.13/com.clothcall.app-debug-67:/mipmap-xxxhdpi_ic_launcher_round.xml.flat",
+        "source": "/Users/amen/.gradle/daemon/8.13/com.clothcall.app-main-69:/mipmap-xxxhdpi/ic_launcher_round.xml"
     },
     {
-        "merged": "com.clothcall.app-debug-67:/mipmap-mdpi_ic_launcher_round.xml.flat",
-        "source": "com.clothcall.app-main-69:/mipmap-mdpi/ic_launcher_round.xml"
+        "merged": "/Users/amen/.gradle/daemon/8.13/com.clothcall.app-debug-67:/mipmap-xhdpi_ic_launcher_round.xml.flat",
+        "source": "/Users/amen/.gradle/daemon/8.13/com.clothcall.app-main-69:/mipmap-xhdpi/ic_launcher_round.xml"
     },
     {
-        "merged": "com.clothcall.app-debug-67:/mipmap-xxxhdpi_ic_launcher_round.xml.flat",
-        "source": "com.clothcall.app-main-69:/mipmap-xxxhdpi/ic_launcher_round.xml"
+        "merged": "/Users/amen/.gradle/daemon/8.13/com.clothcall.app-debug-67:/drawable_fabric_base.png.flat",
+        "source": "/Users/amen/.gradle/daemon/8.13/com.clothcall.app-main-69:/drawable/fabric_base.png"
     },
     {
-        "merged": "com.clothcall.app-debug-67:/mipmap-xhdpi_ic_launcher.xml.flat",
-        "source": "com.clothcall.app-main-69:/mipmap-xhdpi/ic_launcher.xml"
+        "merged": "/Users/amen/.gradle/daemon/8.13/com.clothcall.app-debug-67:/mipmap-mdpi_ic_launcher_round.xml.flat",
+        "source": "/Users/amen/.gradle/daemon/8.13/com.clothcall.app-main-69:/mipmap-mdpi/ic_launcher_round.xml"
     }
 ]

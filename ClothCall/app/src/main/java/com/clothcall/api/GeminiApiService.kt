@@ -27,9 +27,14 @@ Rules you must follow without exception:
 - Never use commanding language: never say "you should", "you must", "I recommend", "consider", or "make sure"
 - Use passive voice: "a mark is visible" not "I can see a mark", "fading is noticeable" not "I notice fading"
 - Describe stain location precisely using garment region and side: "near the lower left cuff", "along the right collar edge", "on the front center panel"
-- For fading, compare directly to the baseline using soft language: "appears slightly lighter than the baseline photo", "color drift is visible around the shoulder area compared to the reference"
-- If a caregiver name and threshold are provided, reference them by name: "this is around where [name] marked similar items as borderline", "still within the range [name] considered fine", "this has passed the level [name] marked as acceptable"
-- If confidence is low due to lighting or angle, say so in one short phrase before the final question: "Lighting makes this difficult to assess with certainty, but a faint mark appears near the left pocket."
+- For fading, compare directly to the baseline using soft language: "appears slightly lighter than the baseline photo", "colour drift is visible around the shoulder area compared to the reference"
+- If a trusted person's name and threshold are provided: their threshold is their personal standard — not a universal rule. Always refer to them by their actual name. Never call them "your trusted person", "the trusted person", or any label — only ever use the name given.
+  Frame all fading judgements in their voice, as though reporting their personal opinion about this specific garment:
+  - Fading clearly below their threshold → "[Name] would still consider this fine" or "this is well within [Name]'s standard for this type of garment"
+  - Fading at or near their threshold → "this is close to where [Name] marked similar items as borderline" or "[Name] rated this level of fading as borderline on comparable fabric"
+  - Fading clearly above their threshold → "this has passed the point where [Name] marked items as no longer acceptable" or "[Name] would consider this beyond their limit for this type of garment"
+- If no trusted person name is provided, do not mention any trusted person at all and do not invent or assume a name
+- If confidence is low due to lighting or angle, note it as a passive observation only ("lighting limits precision here", "angle reduces detail visibility") — never suggest the user adjust position, hold the phone, or take another photo
 - Maximum length: 3 sentences total plus the final question
 - The last sentence of every response must be exactly: Do you still want to wear it?
 - Do not add anything after that sentence
@@ -46,14 +51,16 @@ Rules you must follow without exception:
 - Never use commanding language: never say "you should", "you must", or "I recommend"
 - Use passive voice throughout: "a mark is visible" not "I can see a mark", "fading is apparent" not "I notice fading"
 - Describe stain location precisely: "near the lower left cuff", "along the right collar edge"
-- Assess fading based on the garment's current visible appearance — describe overall color saturation and visible wear
-- If a caregiver name and fade threshold are provided in the user message, calibrate your fading language exactly to their tolerance:
-  - Fading clearly below the threshold → "still within the range [name] considers acceptable"
-  - Fading at or near the threshold → "around the level [name] marked as borderline"
-  - Fading clearly above the threshold → "this has passed the level [name] marked as acceptable"
-- If a caregiver name is provided, reference them by name when describing both stains and fading
+- Assess fading based on the garment's current visible appearance — describe overall colour saturation and visible wear
+- If a trusted person's name and fade threshold are provided: their threshold is their personal standard — not a universal rule. Always refer to them by their actual name. Never call them "your trusted person", "the trusted person", or any label — only ever use the name given.
+  Frame all fading judgements in their voice, as though reporting their personal opinion about this specific garment:
+  - Fading clearly below their threshold → "[Name] would still consider this fine" or "this is well within [Name]'s standard for this type of garment"
+  - Fading at or near their threshold → "this is close to where [Name] marked similar items as borderline" or "[Name] rated this level of fading as borderline on comparable fabric"
+  - Fading clearly above their threshold → "this has passed the point where [Name] marked items as no longer acceptable" or "[Name] would consider this beyond their limit for this type of garment"
+- If a trusted person's name is provided, reference them by name when describing stains as well
+- If no trusted person name is provided, do not mention any trusted person at all and do not invent or assume a name
 - If nothing is found, say: "No visible marks, stains, or fading were detected on this garment. Do you still want to wear it?"
-- If confidence is low due to lighting or angle, say so in one short phrase before the assessment
+- If confidence is low due to lighting or angle, note it as a passive observation only ("lighting limits precision here", "angle reduces detail visibility") — never suggest the user adjust position, hold the phone, or take another photo
 - Maximum length: 3 sentences total plus the final question
 - The last sentence of every response must be exactly: Do you still want to wear it?
 - Do not add anything after that sentence
@@ -110,7 +117,19 @@ class GeminiApiService {
             val messages = JSONArray().apply {
                 put(systemMessage(systemPrompt))
                 put(firstUserMsg)
-                put(assistantMessage(ScanResultHolder.conversationHistory.firstOrNull()?.second ?: firstResponseText))
+                // Replay full conversation history so every prior follow-up and answer
+                // is in context — without this, the second+ follow-up has no memory.
+                val history = ScanResultHolder.conversationHistory
+                if (history.isEmpty()) {
+                    put(assistantMessage(firstResponseText))
+                } else {
+                    for ((role, content) in history) {
+                        when (role) {
+                            "assistant" -> put(assistantMessage(content))
+                            "user"      -> put(userMessageText(content))
+                        }
+                    }
+                }
                 put(userMessageText(followUpText))
             }
             extractText(post(apiKey, buildBody(messages)))
@@ -145,17 +164,16 @@ class GeminiApiService {
         reportedStains: String?
     ): JSONObject {
         val text = buildString {
-            append("Please analyze this clothing item.")
+            append("Please analyse this clothing item.")
             if (caregiverName != null) {
-                append(" Caregiver name: $caregiverName.")
+                append(" Trusted person's name: $caregiverName.")
             }
             if (fadeThreshold != null) {
-                append(" Fade threshold: $fadeThreshold%.")
-                append(" Any fading below this threshold should be described as still acceptable to them.")
-                append(" Any fading at or above this threshold should be described as at or past their limit.")
+                append(" Their personal fade threshold: $fadeThreshold%" +
+                    " (the point at which they first rated fading as borderline on comparable fabric).")
             }
             if (!reportedStains.isNullOrBlank()) {
-                append(" Already reported this session and must not be mentioned again: $reportedStains. Only describe new findings not in this list.")
+                append(" Already reported this session — do not mention again: $reportedStains.")
             }
         }
         return JSONObject().apply {
@@ -175,14 +193,17 @@ class GeminiApiService {
         reportedStains: String?
     ): JSONObject {
         val text = buildString {
-            append("The first image is the baseline reference for this garment. The second image is what is being worn today. Compare them for fading, stains, and condition changes.")
+            append("The first image is the baseline reference for this garment. " +
+                "The second image is what is being worn today. Compare them for fading, stains, and condition changes.")
             if (caregiverName != null) {
-                append(" Caregiver name: $caregiverName. Fade threshold: ${fadeThreshold ?: 0}%. Any fading below this threshold should be described as still acceptable to them. Any fading at or above this threshold should be described as at or past their limit.")
-            } else if (fadeThreshold != null) {
-                append(" Fade threshold: $fadeThreshold%. Any fading below this threshold should be described as still acceptable to them. Any fading at or above this threshold should be described as at or past their limit.")
+                append(" Trusted person's name: $caregiverName.")
+            }
+            if (fadeThreshold != null) {
+                append(" Their personal fade threshold: $fadeThreshold%" +
+                    " (the point at which they first rated fading as borderline on comparable fabric).")
             }
             if (!reportedStains.isNullOrBlank()) {
-                append(" Already reported this session and must not be mentioned again: $reportedStains. Only describe new findings not in this list.")
+                append(" Already reported this session — do not mention again: $reportedStains.")
             }
         }
         return JSONObject().apply {

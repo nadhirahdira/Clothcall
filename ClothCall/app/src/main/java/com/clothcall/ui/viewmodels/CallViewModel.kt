@@ -39,6 +39,9 @@ class CallViewModel(
 
     fun reset() { _phase.value = CallPhase.Ringing }
 
+    /** Home mode: skip Ringing entirely and go straight to TTS. */
+    fun startSpeaking() { transitionToSpeaking() }
+
     fun answer() { transitionToSpeaking() }
 
     fun onTtsDone() { _phase.value = CallPhase.Listening }
@@ -46,16 +49,24 @@ class CallViewModel(
     fun handleVoiceCommand(words: String) {
         val lower = words.lowercase()
         when {
-            "yes" in lower || "i'll wear" in lower || "wear it" in lower ->
-                _phase.value = CallPhase.Dismissed(warm = true)
-            "no" in lower || "i'll change" in lower || "change" in lower ->
+            // Decline — checked first so "no, what about the stain" doesn't accidentally dismiss
+            "no" in lower || "i'll change" in lower ->
                 _phase.value = CallPhase.Dismissed(warm = false)
+
+            // Detail / follow-up questions — checked before "yes" so "okay what about fading"
+            // routes here rather than dismissing as a yes
+            "more" in lower || "detail" in lower ||
+                "fade" in lower || "fading" in lower ||
+                "stain" in lower || "what about" in lower || "how about" in lower ||
+                "tell me" in lower || "is it" in lower || "can i" in lower ||
+                "is the" in lower || "what's" in lower || "explain" in lower ->
+                fetchMoreDetail(words)
+
+            // Repeat
             "again" in lower || "repeat" in lower ->
                 transitionToSpeaking()
-            "more detail" in lower || "more" in lower || "detail" in lower ||
-                "fade" in lower || "fading" in lower ||
-                "stain" in lower || "what about" in lower || "how about" in lower ->
-                fetchMoreDetail(words)
+
+            // Already know — suppress this finding from future scans
             "already know" in lower || "already" in lower -> {
                 val firstSentence = ScanResultHolder.response
                     .split(Regex("(?<=[.!?])\\s+"))
@@ -67,6 +78,12 @@ class CallViewModel(
                 }
                 _phase.value = CallPhase.Dismissed(warm = true)
             }
+
+            // Yes / wear it — last so detail-question phrases get priority above
+            "yes" in lower || "i'll wear" in lower || "wear it" in lower ||
+                "okay" in lower || "fine" in lower || "sure" in lower || "go ahead" in lower ->
+                _phase.value = CallPhase.Dismissed(warm = true)
+
             else -> retryListening()
         }
     }

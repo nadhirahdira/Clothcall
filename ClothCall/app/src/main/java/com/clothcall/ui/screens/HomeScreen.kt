@@ -25,6 +25,15 @@ fun HomeScreen(
     var profileDropdownExpanded by remember { mutableStateOf(false) }
     val activeProfile = profiles.firstOrNull { it.isActive } ?: profiles.firstOrNull()
 
+    // Keep DB in sync with what the bar shows. If no profile is flagged active in the DB
+    // (e.g. fresh install, first profile not yet activated, or Sara was deleted), activate
+    // whichever one the bar is currently displaying so ScanViewModel always finds the right person.
+    LaunchedEffect(activeProfile) {
+        if (activeProfile != null && !activeProfile.isActive) {
+            viewModel.setActiveProfile(activeProfile.id)
+        }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(

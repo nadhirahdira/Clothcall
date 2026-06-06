@@ -1,4 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.ClothCall" parent="android:Theme.Material.Light.NoActionBar" />
+    <style name="Theme.ClothCall" parent="android:Theme.Material.Light.NoActionBar">
+        <!-- Match the app's dark background so there is no white flash before Compose renders -->
+        <item name="android:windowBackground">@color/clothcall_bg</item>
+        <item name="android:statusBarColor">@color/clothcall_bg</item>
+        <item name="android:navigationBarColor">@color/clothcall_bg</item>
+        <!-- Android 12+ splash screen background -->
+        <item name="android:windowSplashScreenBackground">@color/clothcall_bg</item>
+    </style>
 </resources>

@@ -45,25 +45,23 @@ class AudioRouter(private val context: Context) {
     }
 
     fun routeToSpeaker() {
+        // Clear any active communication device (set by Out mode or previous session)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            val device = audioManager.availableCommunicationDevices.firstOrNull {
-                it.type == AudioDeviceInfo.TYPE_BUILTIN_SPEAKER
-            }
-            if (device != null && audioManager.setCommunicationDevice(device)) {
-                return
-            }
+            audioManager.clearCommunicationDevice()
         }
         @Suppress("DEPRECATION")
         run {
             audioManager.mode = AudioManager.MODE_NORMAL
-            audioManager.isSpeakerphoneOn = true
+            audioManager.isSpeakerphoneOn = false
         }
+        // In MODE_NORMAL, TTS (STREAM_MUSIC) routes through the external speaker naturally.
+        // setCommunicationDevice(BUILTIN_SPEAKER) is a VoIP API and would force
+        // MODE_IN_COMMUNICATION, incorrectly routing audio as if it were a phone call.
     }
 
     fun resetRouting() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             audioManager.clearCommunicationDevice()
-            return
         }
         @Suppress("DEPRECATION")
         run {

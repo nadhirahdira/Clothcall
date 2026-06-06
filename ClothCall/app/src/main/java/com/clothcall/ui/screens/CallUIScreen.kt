@@ -64,22 +64,26 @@ fun CallUIScreen(
     val ringPlayer = remember { mutableStateOf<MediaPlayer?>(null) }
     val vibrator = remember { mutableStateOf<Vibrator?>(null) }
 
-    // Reset to Ringing every time this screen appears
-    LaunchedEffect(Unit) { viewModel.reset() }
+    // Out mode: show incoming-call UI (ringing → answer → speaking).
+    // Home mode: go straight to speaking — no ringing screen, no phone call.
+    LaunchedEffect(Unit) {
+        if (isOutMode) viewModel.reset() else viewModel.startSpeaking()
+    }
 
-    // One-time setup: ringtone, vibration, TTS, STT
+    // One-time setup: ringtone + vibration (Out mode only), TTS, STT
     DisposableEffect(Unit) {
-        // Ringtone
-        val uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
-        val player = try { MediaPlayer.create(context, uri) } catch (_: Exception) { null }
-        player?.isLooping = true
-        player?.start()
-        ringPlayer.value = player
+        // Ringtone and vibration only in Out mode — Home mode goes straight to speaking
+        if (isOutMode) {
+            val uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
+            val player = try { MediaPlayer.create(context, uri) } catch (_: Exception) { null }
+            player?.isLooping = true
+            player?.start()
+            ringPlayer.value = player
 
-        // Vibration — pattern: wait 0ms, vibrate 800ms, pause 600ms, repeat
-        val vib = context.getSystemService(Vibrator::class.java)
-        vib?.vibrate(VibrationEffect.createWaveform(longArrayOf(0, 800, 600), 0))
-        vibrator.value = vib
+            val vib = context.getSystemService(Vibrator::class.java)
+            vib?.vibrate(VibrationEffect.createWaveform(longArrayOf(0, 800, 600), 0))
+            vibrator.value = vib
+        }
 
         // TTS — use a var so the callback can reference it safely after construction
         var ttsEngine: TextToSpeech? = null
@@ -100,8 +104,8 @@ fun CallUIScreen(
         }
 
         onDispose {
-            player?.stop(); player?.release()
-            vib?.cancel()
+            ringPlayer.value?.stop(); ringPlayer.value?.release()
+            vibrator.value?.cancel()
             val engine = ttsEngine
             engine?.stop()
             engine?.shutdown()
@@ -143,10 +147,11 @@ fun CallUIScreen(
         }
     }
 
-    // Listening → open mic; re-fires on listeningKey bump so STT retries after silence/error
+    // Listening → open mic; re-fires on listeningKey bump so STT retries after silence/error.
+    // 900 ms delay lets speaker reverb die down before the mic opens, preventing feedback.
     LaunchedEffect(phase, listeningKey) {
         if (phase is CallPhase.Listening) {
-            delay(300)
+            delay(900)
             startListening(stt) { words ->
                 if (words.isBlank()) viewModel.retryListening()
                 else viewModel.handleVoiceCommand(words)
@@ -418,8 +423,8 @@ private fun startListening(stt: SpeechRecognizer?, onResult: (String) -> Unit) {
         override fun onBufferReceived(b: ByteArray?) {}
         override fun onEndOfSpeech() {}
         override fun onPartialResults(r: Bundle?) {
-            val partial = r?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull().orEmpty()
-            if (partial.isNotBlank()) onResult(partial)
+            // Ignore partials — acting on them causes acoustic feedback from the speaker
+            // to trigger false commands before the user has finished speaking.
         }
         override fun onEvent(e: Int, p: Bundle?) {}
         override fun onError(e: Int) {

@@ -21,6 +21,9 @@ interface CaregiverProfileDao {
     @Query("SELECT * FROM caregiver_profiles WHERE isActive = 1 LIMIT 1")
     suspend fun getActiveProfile(): CaregiverProfile?
 
+    @Query("SELECT * FROM caregiver_profiles ORDER BY id DESC LIMIT 1")
+    suspend fun getFirstProfile(): CaregiverProfile?
+
     @Query("UPDATE caregiver_profiles SET isActive = 0")
     suspend fun clearActiveProfile()
 

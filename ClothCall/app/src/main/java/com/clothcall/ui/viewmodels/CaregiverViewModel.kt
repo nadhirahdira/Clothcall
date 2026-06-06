@@ -19,7 +19,10 @@ class CaregiverViewModel(private val dao: CaregiverProfileDao) : ViewModel() {
 
     fun saveProfile(name: String, threshold: Int) {
         viewModelScope.launch {
-            dao.insertProfile(CaregiverProfile(name = name, fadeThreshold = threshold))
+            // Clear any existing active flag, then insert and immediately activate the new profile
+            dao.clearActiveProfile()
+            val id = dao.insertProfile(CaregiverProfile(name = name, fadeThreshold = threshold))
+            dao.setActiveProfile(id.toInt())
         }
     }
 
