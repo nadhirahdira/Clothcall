@@ -59,6 +59,23 @@ Classify their response into exactly one of these intents:
 Reply with only the intent word. Nothing else.
 """.trimIndent()
 
+private val ALIGNMENT_PROMPT = """
+You are a camera alignment assistant helping a blind user photograph a clothing item they are wearing or holding up to the camera. The user cannot see the preview and cannot judge spatial orientation (left/right/up/down relative to the frame) — only give guidance the user can act on without seeing anything: how far away to hold the camera, and whether the garment is in view at all.
+
+Judge strictly from what is visible in THIS image — how much of the frame the clothing fills and how even the lighting looks. Do not default to a habitual answer.
+
+Pick exactly the one guidance string below that matches what you see, and reply with that string only:
+
+- "Good" — the clothing fills most of the frame and lighting is even, even if not perfectly centered. Favor this whenever the framing is already usable for a photo.
+- "Move closer" — the clothing looks small with a lot of empty space surrounding it
+- "Move back" — the clothing fills nearly the whole frame and visibly runs off the edges
+- "Recenter" — part of the clothing is visible but it is mostly out of frame, cut off, or only a small sliver is showing along one side
+- "No clothing found" — no wearable garment appears anywhere in the frame
+- "Too dark" — the frame is too dark or low-contrast to make out the clothing's shape
+
+Reply with only the matching string from the list. Nothing else.
+""".trimIndent()
+
 private val SINGLE_IMAGE_PROMPT = """
 You are a clothing condition assistant. You receive one image of a garment.
 
@@ -115,6 +132,32 @@ class GeminiApiService {
             extractText(post(apiKey, buildBody(messages)))
         }.also { result ->
             result.onFailure { Log.e(TAG, "analyzeClothing failed", it) }
+        }
+    }
+
+    suspend fun classifyAlignment(
+        apiKey: String,
+        base64Jpeg: String
+    ): Result<String> = withContext(Dispatchers.IO) {
+        runCatching {
+            val messages = JSONArray().apply {
+                put(systemMessage(ALIGNMENT_PROMPT))
+                put(JSONObject().apply {
+                    put("role", "user")
+                    put("content", JSONArray().apply {
+                        put(imageUrlPart(base64Jpeg))
+                        put(textPart("Assess camera alignment for photographing this clothing item."))
+                    })
+                })
+            }
+            val body = JSONObject().apply {
+                put("model", MODEL)
+                put("messages", messages)
+                put("max_tokens", 12)
+            }
+            extractText(post(apiKey, body)).trim()
+        }.also { result ->
+            result.onFailure { Log.e(TAG, "classifyAlignment failed", it) }
         }
     }
 

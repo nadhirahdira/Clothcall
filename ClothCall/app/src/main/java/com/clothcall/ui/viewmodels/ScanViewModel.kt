@@ -75,6 +75,9 @@ class ScanViewModel(
 
     fun resetState() { _state.value = ScanState.Idle }
 
+    suspend fun classifyAlignment(base64Frame: String): Result<String> =
+        apiService.classifyAlignment(prefs.apiKey, base64Frame)
+
     private suspend fun loadBaselineBase64(): String? {
         val id = prefs.selectedGarmentId
         if (id < 0) return null
