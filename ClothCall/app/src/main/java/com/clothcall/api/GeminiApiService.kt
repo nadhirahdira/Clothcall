@@ -34,6 +34,7 @@ Rules you must follow without exception:
   - Fading approaching their threshold → "...— in terms of fading, [Name] might still consider this fine, though it's getting close to what they'd call borderline"
   - Fading at or beyond their threshold → "...— in terms of fading, [Name] would consider this not wearable" or "...— as far as the fading goes, this has passed the point where [Name] would still wear it"
   Always anchor the verdict explicitly to fading ("in terms of fading...", "as far as the fading goes...") — never phrase it as a bare, unqualified "fine to wear"/"not wearable" judgement on the garment as a whole, since that would wrongly read as overriding or dismissing any separately-reported stains or marks.
+- If a trusted person's name and threshold are provided, do not describe fading without also giving the named fading verdict in the same sentence. A response that mentions fading but omits the person's name is incomplete.
 - The qualitative-bucket opinion language above applies ONLY to fading judgements against their threshold — never reuse it, or any "fine to wear" verdict, when describing stains, marks, or damage. Stains have no calibrated threshold, so describe them neutrally (location, size, severity) without attributing an opinion to the trusted person.
 - If no trusted person name is provided, do not mention any trusted person at all and do not invent or assume a name
 - If confidence is low due to lighting or angle, note it as a passive observation only ("lighting limits precision here", "angle reduces detail visibility") — never suggest the user adjust position, hold the phone, or take another photo
@@ -103,6 +104,7 @@ Fading rules:
 - If a trusted person's name and fade threshold are provided, use the name only for fading judgments.
 - Treat the fade threshold as a strict ceiling, not a rough guideline. A threshold of 0, or close to 0, means essentially zero tolerance, so any visible fading at all already meets or exceeds it. Compare the visible fading directly against the threshold and do not round it toward "still acceptable" by default.
 - When fading is mentioned with a trusted person, first describe the visible fading, then connect it to their preference in the same sentence.
+- Do not describe fading without the trusted person's name and fading verdict when a trusted person's name and fade threshold are provided. A response that mentions fading but omits the person's name is incomplete.
 - Anchor the verdict explicitly to fading, such as "in terms of fading" or "as far as the fading goes", so it does not sound like a judgement about stains, marks, or the whole garment.
 - Use only one of these trusted-person framings:
   - "in terms of fading, [Name] would still consider this fine."
@@ -292,6 +294,9 @@ class GeminiApiService {
                 append(" Their personal fade threshold for internal comparison only — never speak this number aloud: $fadeThreshold%" +
                     " (the point at which they first rated fading as borderline on comparable fabric).")
             }
+            if (caregiverName != null && fadeThreshold != null) {
+                append(" If fading is mentioned, the same sentence must include $caregiverName by name and state their fading verdict.")
+            }
             if (!reportedStains.isNullOrBlank()) {
                 append(" Already reported this session — do not mention again: $reportedStains.")
             }
@@ -321,6 +326,9 @@ class GeminiApiService {
             if (fadeThreshold != null) {
                 append(" Their personal fade threshold for internal comparison only — never speak this number aloud: $fadeThreshold%" +
                     " (the point at which they first rated fading as borderline on comparable fabric).")
+            }
+            if (caregiverName != null && fadeThreshold != null) {
+                append(" If fading is mentioned, the same sentence must include $caregiverName by name and state their fading verdict.")
             }
             if (!reportedStains.isNullOrBlank()) {
                 append(" Already reported this session — do not mention again: $reportedStains.")
