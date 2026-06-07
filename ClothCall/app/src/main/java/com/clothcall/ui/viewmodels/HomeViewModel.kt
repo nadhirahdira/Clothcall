@@ -35,6 +35,10 @@ class HomeViewModel(
         get() = prefs.selectedGarmentId
         set(value) { prefs.selectedGarmentId = value }
 
+    var hasSpokenWelcome: Boolean
+        get() = prefs.hasSpokenWelcome
+        set(value) { prefs.hasSpokenWelcome = value }
+
     fun setActiveProfile(id: Int) {
         viewModelScope.launch {
             caregiverDao.clearActiveProfile()

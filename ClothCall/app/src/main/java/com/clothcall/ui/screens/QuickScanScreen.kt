@@ -167,8 +167,11 @@ private fun CameraCapture(
             .build()
     }
 
+    // Manual capture (FAB tap or volume-down) is a deliberate user override —
+    // it always fires regardless of alignment guidance. captureEnabled only
+    // gates the automatic capture triggered when guidance reports "Good".
     val performCapture: () -> Unit = capture@{
-        if (captureInProgress || !captureEnabled) return@capture
+        if (captureInProgress) return@capture
         captureInProgress = true
         guidanceTts?.speak(
             "Got it",
