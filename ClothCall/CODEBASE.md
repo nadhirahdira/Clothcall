@@ -32,7 +32,8 @@ adb shell pm clear com.clothcall
 - **Network:** OkHttp + manual `org.json` — no Retrofit
 - **AI:** Groq REST API, model `meta-llama/llama-4-scout-17b-16e-instruct`, called from `GeminiApiService.kt` (name kept for import compatibility — do not rename)
 - **Camera:** CameraX `ImageCapture` + `ImageAnalysis` (live frame quality) + `Preview`
-- **Voice out:** Android `TextToSpeech` — instantiated locally inside `CallUIScreen` and `CameraCapture`. `AudioRouter` has its own TTS methods (`initTts`/`speak`/`shutdown`) that are **never called** — do not wire them.
+- **Voice out:** Android `TextToSpeech` — instantiated locally inside `CallUIScreen`, `HomeScreen`, and `CameraCapture`/`QuickScanScreen`. `AudioRouter` has its own TTS methods (`initTts`/`speak`/`shutdown`) that are **never called** — do not wire them. Each screen's TTS engine is stopped on `Lifecycle.Event.ON_PAUSE` via a `LifecycleEventObserver` (Compose stays alive when the Activity backgrounds, so speech must be stopped explicitly or it keeps talking after the user leaves).
+- **Camera alignment:** `ALIGNMENT_PROMPT` (Groq, `classifyAlignment()`) classifies live frames into six non-directional states — `Good`, `Move closer`, `Move back`, `Recenter`, `No clothing found`, `Too dark`. Directional guidance ("Tilt up/down", "Turn left/right") was deliberately removed — a blind user cannot judge spatial orientation relative to an unseen frame, and the front-camera mirror flip made left/right answers backwards anyway.
 - **Voice in:** Android `SpeechRecognizer`. Partial results are intentionally disabled to prevent acoustic feedback from the speaker triggering false commands.
 - **Audio routing:** `AudioRouter.kt`. Home mode → `MODE_NORMAL` (TTS uses `STREAM_MUSIC`, routes to external speaker naturally). Out mode → `MODE_IN_CALL` (earpiece). `setCommunicationDevice()` must not be used — it forces `MODE_IN_COMMUNICATION` and routes to earpiece.
 - **Telecom:** Self-managed `PhoneAccount` + `ConnectionService`. Out mode only — fires a real system incoming-call UI on the lock screen.
@@ -48,8 +49,14 @@ HomeScreen
 QuickScanScreen / CameraCapture
   VolumeCaptureBus.trigger registered via DisposableEffect(imageCapture)
   MainActivity.dispatchKeyEvent intercepts KEYCODE_VOLUME_DOWN → fires trigger
-  Frame quality (ImageAnalysis Y-plane variance, hysteresis 400/600) → TTS guidance
-  On capture → ScanViewModel.analyze(bitmap)
+  StartupInstructionState (singleton, @Volatile spoken flag) → "Point your camera..." spoken once
+  STARTUP_GUIDANCE_DELAY_MS (4.5s) grace window before guidance/auto-capture can start
+  Cheap local averageBrightness() pre-filter → "Too dark" spoken without an API call
+  Else → viewModel.classifyAlignment() (Groq, ALIGNMENT_PROMPT) → one of six guidance strings
+    → TTS guidance spoken; "Good" enables auto-capture after AUTO_CAPTURE_HOLD_MS hold-still
+  performCapture(): manual triggers (FAB / volume-down) always fire — only auto-capture is
+    gated on captureEnabled (guidance == "Good")
+  On capture → "Got it" spoken → ScanViewModel.analyze(bitmap)
 
 ScanViewModel.analyze()
   reset() ScanResultHolder
@@ -84,7 +91,7 @@ In-memory singleton bridging `ScanViewModel` → `CallViewModel`. Fields: `base6
 Both `SYSTEM_PROMPT` (two-image, baseline compare) and `SINGLE_IMAGE_PROMPT` (one image, always active):
 - Passive voice throughout — "a mark is visible", never "I can see"
 - Precise location: "near the lower left cuff", "along the right collar edge"
-- If a trusted person name + threshold is provided, **always use their actual name** — never "your trusted person" or any label. Threshold language must sound like their personal opinion, not a rule.
+- If a trusted person name + threshold is provided, **always use their actual name** — never "your trusted person" or any label. Lead with a short visual observation of the fading, then immediately follow with their opinion in the same sentence using one of three qualitative buckets (clearly below / approaching / at-or-beyond their threshold) — never speak the raw percentage. This combined description+framing pattern is intentionally moderate ("Lead with... then follow with...") rather than emphatic ("Always...Never...say both") — the stronger phrasing was tried and caused the trusted-person framing to bleed into unrelated follow-up answers (e.g. stain questions echoing fading opinions). Keep new prompt rules phrased moderately for the same reason.
 - If no trusted person is provided, **do not mention one or invent a name**
 - Low confidence → passive observation only ("lighting limits precision here") — never instruct the user to adjust position or retake
 - Always ends with exactly: **Do you still want to wear it?**
@@ -108,3 +115,9 @@ These rules protect user autonomy and dignity.
 - **`VolumeCaptureBus`** — `MainActivity.dispatchKeyEvent` (not `onKeyDown`) intercepts volume-down, which fires before any View including `PreviewView` can consume it. `CameraCapture` registers/clears the trigger via `DisposableEffect(imageCapture)`.
 - **Home mode** has no ringing — `CallUIScreen` branches on `isOutMode`: Out → `viewModel.reset()` (Ringing phase), Home → `viewModel.startSpeaking()` (skips Ringing). Ringtone and vibration creation are also gated behind `if (isOutMode)`.
 - **STT partial results** are disabled in `onPartialResults` — acoustic feedback from the speaker was triggering false commands before the user finished speaking.
+- **`HomeScreen` TalkBack semantics** — every interactive element (`ProfileDropdown`, `ModeToggle` buttons, "Check My Clothes") uses `Modifier.clearAndSetSemantics { contentDescription = ...; role = Role.Button }` rather than plain `semantics {}`. Plain `semantics{}` merges descendant text nodes too, so TalkBack announced the visible label *and* the custom description back to back; `clearAndSetSemantics` replaces descendant semantics entirely.
+- **`hasSpokenWelcome`** (`PreferencesManager` / `HomeViewModel`) — gates the HomeScreen welcome TTS ("Tap Check My Clothes to begin.") to speak once per app process. Reset to `false` in `ClothCallApplication.onCreate()`, so it fires on first HomeScreen visit after a fresh launch and never again until the process restarts — not on every navigation back to HomeScreen. Also suppressed entirely when `AccessibilityManager.isTouchExplorationEnabled()` is true, since TalkBack already announces focused elements.
+
+## Versioning
+
+`versionCode`/`versionName` live in `app/build.gradle.kts` `defaultConfig`. Bump `versionCode` (monotonic integer) on every release build that gets published; `versionName` is the human-facing string (e.g. `"1.1"`). Releases are published as GitHub Releases with the signed `app-release.apk` attached — tag format `vX.Y` (e.g. `v1.1`).
